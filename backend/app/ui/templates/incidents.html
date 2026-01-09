@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Incidents - Multi-Agent Incident Response{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Incidents</h1>
+    <div class="flex gap-2">
+        <select id="status-filter" class="btn btn-secondary" onchange="applyFilters()">
+            <option value="">All Status</option>
+            <option value="OPEN">Open</option>
+            <option value="INVESTIGATING">Investigating</option>
+            <option value="RESOLVED">Resolved</option>
+        </select>
+        <select id="severity-filter" class="btn btn-secondary" onchange="applyFilters()">
+            <option value="">All Severities</option>
+            <option value="SEV1">SEV1</option>
+            <option value="SEV2">SEV2</option>
+            <option value="SEV3">SEV3</option>
+            <option value="SEV4">SEV4</option>
+        </select>
+        <button class="btn btn-secondary" onclick="fetchIncidents()">↻ Refresh</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Incident</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Ended</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="incidents-table">
+                <tr>
+                    <td colspan="6" class="text-center text-muted" style="padding: 2rem;">
+                        <div class="loading"></div>
+                        <p class="mt-1">Loading incidents...</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="flex justify-between items-center mt-2" id="pagination">
+        <span class="text-muted" id="page-info">-</span>
+        <div class="flex gap-1">
+            <button class="btn btn-secondary" id="prev-btn" onclick="prevPage()" disabled>← Previous</button>
+            <button class="btn btn-secondary" id="next-btn" onclick="nextPage()">Next →</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentPage = 1;
+const pageSize = 20;
+let totalItems = 0;
+
+async function fetchIncidents() {
+    const status = document.getElementById('status-filter').value;
+    const severity = document.getElementById('severity-filter').value;
+    
+    let url = `/api/incidents?page=${currentPage}&size=${pageSize}`;
+    if (status) url += `&status=${status}`;
+    if (severity) url += `&severity=${severity}`;
+    
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        totalItems = data.total;
+        
+        const tbody = document.getElementById('incidents-table');
+        
+        if (data.items.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center" style="padding: 3rem;">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <p>No incidents found with current filters.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            updatePagination();
+            return;
+        }
+        
+        tbody.innerHTML = data.items.map(incident => `
+            <tr class="fade-in">
+                <td>
+                    <a href="/incidents/${incident.id}" style="color: var(--text-primary); text-decoration: none; font-weight: 500;">
+                        ${incident.title}
+                    </a>
+                    <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem; font-family: var(--font-mono);">
+                        ${incident.id.substring(0, 8)}
+                    </div>
+                </td>
+                <td><span class="sev-badge ${getSeverityClass(incident.severity)}">${incident.severity}</span></td>
+                <td><span class="badge ${getStatusClass(incident.status)}">${incident.status}</span></td>
+                <td style="font-family: var(--font-mono); font-size: 0.85rem;">
+                    ${formatDate(incident.start_time)}
+                </td>
+                <td style="font-family: var(--font-mono); font-size: 0.85rem;">
+                    ${incident.end_time ? formatDate(incident.end_time) : '-'}
+                </td>
+                <td>
+                    <div class="flex gap-1">
+                        <a href="/incidents/${incident.id}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                            View
+                        </a>
+                        ${incident.status !== 'RESOLVED' ? `
+                            <button class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="rerunAnalysis('${incident.id}')">
+                                ⚡ Analyze
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+        
+        updatePagination();
+        
+    } catch (error) {
+        console.error('Failed to fetch incidents:', error);
+        document.getElementById('incidents-table').innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted" style="padding: 2rem;">
+                    Failed to load incidents. <button onclick="fetchIncidents()">Retry</button>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function updatePagination() {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    document.getElementById('page-info').textContent = 
+        totalItems > 0 ? `Page ${currentPage} of ${totalPages} (${totalItems} total)` : 'No results';
+    
+    document.getElementById('prev-btn').disabled = currentPage <= 1;
+    document.getElementById('next-btn').disabled = currentPage >= totalPages;
+}
+
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        fetchIncidents();
+    }
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (currentPage < totalPages) {
+        currentPage++;
+        fetchIncidents();
+    }
+}
+
+function applyFilters() {
+    currentPage = 1;
+    fetchIncidents();
+}
+
+async function rerunAnalysis(incidentId) {
+    try {
+        const response = await fetch(`/api/incidents/${incidentId}/rerun`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Analysis triggered! Refresh in a moment to see results.');
+            setTimeout(fetchIncidents, 2000);
+        } else {
+            alert('Failed to trigger analysis: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Failed to trigger analysis: ' + error.message);
+    }
+}
+
+// Initial load
+fetchIncidents();
+</script>
+{% endblock %}
+

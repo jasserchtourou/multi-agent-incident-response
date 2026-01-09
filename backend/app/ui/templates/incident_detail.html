@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Detail - Multi-Agent Incident Response{% endblock %}
+
+{% block content %}
+<div id="incident-container">
+    <div class="text-center" style="padding: 4rem;">
+        <div class="loading"></div>
+        <p class="mt-1 text-muted">Loading incident...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+const incidentId = window.location.pathname.split('/').pop();
+
+async function fetchIncident() {
+    try {
+        const response = await fetch(`/api/incidents/${incidentId}`);
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                document.getElementById('incident-container').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🔍</div>
+                        <h2>Incident Not Found</h2>
+                        <p class="text-muted">The incident you're looking for doesn't exist.</p>
+                        <a href="/incidents" class="btn btn-primary mt-2">← Back to Incidents</a>
+                    </div>
+                `;
+                return;
+            }
+            throw new Error('Failed to fetch incident');
+        }
+        
+        const incident = await response.json();
+        renderIncident(incident);
+        
+    } catch (error) {
+        console.error('Failed to fetch incident:', error);
+        document.getElementById('incident-container').innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">⚠️</div>
+                <h2>Error Loading Incident</h2>
+                <p class="text-muted">${error.message}</p>
+                <button onclick="fetchIncident()" class="btn btn-primary mt-2">Retry</button>
+            </div>
+        `;
+    }
+}
+
+function renderIncident(incident) {
+    const container = document.getElementById('incident-container');
+    
+    const rcaHtml = incident.rca_markdown 
+        ? marked.parse(incident.rca_markdown)
+        : '<p class="text-muted">RCA report not yet generated. Run analysis to generate.</p>';
+    
+    container.innerHTML = `
+        <div class="page-header">
+            <div>
+                <a href="/incidents" class="text-muted" style="text-decoration: none; font-size: 0.85rem;">
+                    ← Back to Incidents
+                </a>
+                <h1 class="page-title mt-1">${incident.title}</h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="sev-badge ${getSeverityClass(incident.severity)}">${incident.severity}</span>
+                    <span class="badge ${getStatusClass(incident.status)}">${incident.status}</span>
+                    <span class="text-muted" style="font-family: var(--font-mono); font-size: 0.85rem;">
+                        ID: ${incident.id.substring(0, 8)}
+                    </span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                ${incident.status !== 'RESOLVED' ? `
+                    <button class="btn btn-primary" onclick="rerunAnalysis()">
+                        ⚡ Run Analysis
+                    </button>
+                ` : ''}
+                <button class="btn btn-secondary" onclick="fetchIncident()">
+                    ↻ Refresh
+                </button>
+            </div>
+        </div>
+        
+        <!-- Timeline Info -->
+        <div class="grid grid-4 mb-2">
+            <div class="stat-card">
+                <div class="stat-label">Started</div>
+                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
+                    ${formatDate(incident.start_time)}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ended</div>
+                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
+                    ${incident.end_time ? formatDate(incident.end_time) : 'Ongoing'}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Duration</div>
+                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
+                    ${incident.end_time 
+                        ? Math.round((new Date(incident.end_time) - new Date(incident.start_time)) / 60000) + ' min'
+                        : 'Ongoing'}
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Agent Runs</div>
+                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
+                    ${incident.agent_runs ? incident.agent_runs.length : 0}
+                </div>
+            </div>
+        </div>
+        
+        <!-- RCA Report -->
+        <div class="card mb-2">
+            <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                📋 Root Cause Analysis Report
+            </h2>
+            <div class="markdown-content">
+                ${rcaHtml}
+            </div>
+        </div>
+        
+        <!-- Signals Data -->
+        <div class="card mb-2">
+            <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                📊 Signals Data
+            </h2>
+            <pre><code>${JSON.stringify(incident.signals_json || {}, null, 2)}</code></pre>
+        </div>
+        
+        <!-- Agent Runs -->
+        ${incident.agent_runs && incident.agent_runs.length > 0 ? `
+            <div class="card mb-2">
+                <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                    🤖 Agent Runs
+                </h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Agent</th>
+                                <th>Started</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${incident.agent_runs.map(run => `
+                                <tr>
+                                    <td>
+                                        <strong>${run.agent_name}</strong>
+                                    </td>
+                                    <td style="font-family: var(--font-mono); font-size: 0.85rem;">
+                                        ${formatDate(run.started_at)}
+                                    </td>
+                                    <td style="font-family: var(--font-mono); font-size: 0.85rem;">
+                                        ${run.latency_ms ? Math.round(run.latency_ms) + 'ms' : '-'}
+                                    </td>
+                                    <td>
+                                        ${run.error_message 
+                                            ? '<span class="badge badge-open">Error</span>'
+                                            : run.finished_at 
+                                                ? '<span class="badge badge-resolved">Complete</span>'
+                                                : '<span class="badge badge-investigating">Running</span>'
+                                        }
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        ` : ''}
+        
+        <!-- Summary JSON -->
+        ${incident.final_summary_json && Object.keys(incident.final_summary_json).length > 0 ? `
+            <div class="card">
+                <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                    📝 Analysis Summary (JSON)
+                </h2>
+                <pre><code>${JSON.stringify(incident.final_summary_json, null, 2)}</code></pre>
+            </div>
+        ` : ''}
+    `;
+}
+
+async function rerunAnalysis() {
+    try {
+        const response = await fetch(`/api/incidents/${incidentId}/rerun`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Analysis triggered! The page will refresh when complete.');
+            // Poll for completion
+            pollForCompletion();
+        } else {
+            alert('Failed to trigger analysis: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Failed to trigger analysis: ' + error.message);
+    }
+}
+
+function pollForCompletion() {
+    let attempts = 0;
+    const maxAttempts = 30;
+    
+    const poll = setInterval(async () => {
+        attempts++;
+        
+        try {
+            const response = await fetch(`/api/incidents/${incidentId}`);
+            const incident = await response.json();
+            
+            if (incident.status === 'RESOLVED' || attempts >= maxAttempts) {
+                clearInterval(poll);
+                fetchIncident();
+            }
+        } catch (error) {
+            console.error('Poll error:', error);
+        }
+    }, 2000);
+}
+
+// Initial load
+fetchIncident();
+</script>
+{% endblock %}
+

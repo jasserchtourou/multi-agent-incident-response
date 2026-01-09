@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Multi-Agent Incident Response{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Dashboard</h1>
+    <div class="flex gap-2">
+        <button class="btn btn-secondary" onclick="refreshData()">
+            ↻ Refresh
+        </button>
+        <a href="/demo" class="btn btn-primary">
+            🎯 Trigger Fault
+        </a>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-4 mb-2" id="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Open Incidents</div>
+        <div class="stat-value" id="stat-open" style="color: var(--error);">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Investigating</div>
+        <div class="stat-value" id="stat-investigating" style="color: var(--warning);">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Resolved (24h)</div>
+        <div class="stat-value" id="stat-resolved" style="color: var(--success);">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Demo Service</div>
+        <div class="stat-value" id="stat-demo" style="color: var(--text-secondary);">-</div>
+    </div>
+</div>
+
+<!-- Recent Incidents -->
+<div class="card mt-3">
+    <div class="flex justify-between items-center mb-2">
+        <h2 style="font-size: 1.25rem; font-weight: 600;">Recent Incidents</h2>
+        <a href="/incidents" class="text-secondary" style="font-size: 0.9rem;">View all →</a>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Incident</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="incidents-table">
+                <tr>
+                    <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                        <div class="loading"></div>
+                        <p class="mt-1">Loading incidents...</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Demo Service Status -->
+<div class="card mt-3">
+    <div class="flex justify-between items-center mb-2">
+        <h2 style="font-size: 1.25rem; font-weight: 600;">Demo Service Status</h2>
+    </div>
+    <div id="demo-status" class="text-secondary">Loading...</div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function fetchIncidents() {
+    try {
+        const response = await fetch('/api/incidents?size=10');
+        const data = await response.json();
+        
+        const tbody = document.getElementById('incidents-table');
+        
+        if (data.items.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center" style="padding: 3rem;">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🎉</div>
+                            <p>No incidents found. All systems operational!</p>
+                            <a href="/demo" class="btn btn-primary mt-2">Trigger a demo fault</a>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = data.items.map(incident => `
+            <tr class="fade-in">
+                <td>
+                    <a href="/incidents/${incident.id}" style="color: var(--text-primary); text-decoration: none; font-weight: 500;">
+                        ${incident.title}
+                    </a>
+                    <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">
+                        ${incident.id.substring(0, 8)}...
+                    </div>
+                </td>
+                <td><span class="sev-badge ${getSeverityClass(incident.severity)}">${incident.severity}</span></td>
+                <td><span class="badge ${getStatusClass(incident.status)}">${incident.status}</span></td>
+                <td>
+                    <span style="font-family: var(--font-mono); font-size: 0.85rem;">
+                        ${formatDate(incident.start_time)}
+                    </span>
+                </td>
+                <td>
+                    <a href="/incidents/${incident.id}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                        View
+                    </a>
+                </td>
+            </tr>
+        `).join('');
+        
+        // Update stats
+        const openCount = data.items.filter(i => i.status === 'OPEN').length;
+        const investigatingCount = data.items.filter(i => i.status === 'INVESTIGATING').length;
+        const resolvedCount = data.items.filter(i => i.status === 'RESOLVED').length;
+        
+        document.getElementById('stat-open').textContent = openCount;
+        document.getElementById('stat-investigating').textContent = investigatingCount;
+        document.getElementById('stat-resolved').textContent = resolvedCount;
+        
+    } catch (error) {
+        console.error('Failed to fetch incidents:', error);
+        document.getElementById('incidents-table').innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
+                    Failed to load incidents. <button onclick="fetchIncidents()">Retry</button>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+async function fetchDemoStatus() {
+    try {
+        const response = await fetch('/api/demo/status');
+        const data = await response.json();
+        
+        const statusEl = document.getElementById('demo-status');
+        const statEl = document.getElementById('stat-demo');
+        
+        if (data.healthy) {
+            statEl.textContent = '✓';
+            statEl.style.color = 'var(--success)';
+            statusEl.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-resolved">● Healthy</span>
+                    <span class="text-muted">Uptime: ${Math.round(data.uptime_seconds / 60)} minutes</span>
+                </div>
+            `;
+        } else {
+            statEl.textContent = '⚠';
+            statEl.style.color = 'var(--warning)';
+            statusEl.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-open">● Fault Active</span>
+                    <span class="text-secondary">${data.current_fault || 'Unknown'}</span>
+                    ${data.fault_expires_at ? `<span class="text-muted">Expires: ${formatDate(data.fault_expires_at)}</span>` : ''}
+                </div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('stat-demo').textContent = '?';
+        document.getElementById('demo-status').innerHTML = '<span class="text-muted">Could not connect to demo service</span>';
+    }
+}
+
+function refreshData() {
+    fetchIncidents();
+    fetchDemoStatus();
+}
+
+// Initial load
+refreshData();
+
+// Auto-refresh every 30 seconds
+setInterval(refreshData, 30000);
+</script>
+{% endblock %}
+

@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Demo Control - Multi-Agent Incident Response{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Demo Control Panel</h1>
+    <button class="btn btn-secondary" onclick="refreshStatus()">↻ Refresh Status</button>
+</div>
+
+<!-- Current Status -->
+<div class="card mb-2">
+    <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;">Current Status</h2>
+    <div id="status-display">
+        <div class="loading"></div>
+    </div>
+</div>
+
+<!-- Fault Triggers -->
+<div class="card">
+    <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;">Trigger Fault</h2>
+    <p class="text-secondary mb-2">
+        Inject faults into the demo service to simulate incidents. The incident detection system will 
+        automatically detect anomalies and trigger multi-agent analysis.
+    </p>
+    
+    <div class="grid grid-2" style="gap: 1rem;">
+        <!-- Latency Spike -->
+        <div class="stat-card" style="cursor: pointer;" onclick="triggerFault('latency_spike')">
+            <div class="flex items-center gap-2 mb-1">
+                <span style="font-size: 1.5rem;">🐌</span>
+                <strong>Latency Spike</strong>
+            </div>
+            <p class="text-muted" style="font-size: 0.85rem;">
+                Adds 1-3 second delay to requests. Simulates slow backend or database issues.
+            </p>
+        </div>
+        
+        <!-- Error Rate -->
+        <div class="stat-card" style="cursor: pointer;" onclick="triggerFault('error_rate')">
+            <div class="flex items-center gap-2 mb-1">
+                <span style="font-size: 1.5rem;">💥</span>
+                <strong>Error Rate Spike</strong>
+            </div>
+            <p class="text-muted" style="font-size: 0.85rem;">
+                Random HTTP 500 errors (30% rate). Simulates application failures.
+            </p>
+        </div>
+        
+        <!-- DB Slow -->
+        <div class="stat-card" style="cursor: pointer;" onclick="triggerFault('db_slow')">
+            <div class="flex items-center gap-2 mb-1">
+                <span style="font-size: 1.5rem;">🗄️</span>
+                <strong>Slow Database</strong>
+            </div>
+            <p class="text-muted" style="font-size: 0.85rem;">
+                Simulates slow database queries (0.5-2s per query).
+            </p>
+        </div>
+        
+        <!-- Memory Leak -->
+        <div class="stat-card" style="cursor: pointer;" onclick="triggerFault('memory_leak')">
+            <div class="flex items-center gap-2 mb-1">
+                <span style="font-size: 1.5rem;">📈</span>
+                <strong>Memory Leak</strong>
+            </div>
+            <p class="text-muted" style="font-size: 0.85rem;">
+                Memory grows by 100KB per request. Simulates memory leak bug.
+            </p>
+        </div>
+        
+        <!-- Dependency Down -->
+        <div class="stat-card" style="cursor: pointer;" onclick="triggerFault('dependency_down')">
+            <div class="flex items-center gap-2 mb-1">
+                <span style="font-size: 1.5rem;">🔌</span>
+                <strong>Dependency Down</strong>
+            </div>
+            <p class="text-muted" style="font-size: 0.85rem;">
+                External API failures (50% rate). Simulates third-party service outage.
+            </p>
+        </div>
+        
+        <!-- Clear Fault -->
+        <div class="stat-card" style="cursor: pointer; border-color: var(--success);" onclick="clearFault()">
+            <div class="flex items-center gap-2 mb-1">
+                <span style="font-size: 1.5rem;">✅</span>
+                <strong style="color: var(--success);">Clear All Faults</strong>
+            </div>
+            <p class="text-muted" style="font-size: 0.85rem;">
+                Return demo service to healthy state.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Duration Setting -->
+<div class="card mt-2">
+    <div class="flex items-center gap-2">
+        <label for="duration" style="font-weight: 500;">Fault Duration:</label>
+        <select id="duration" class="btn btn-secondary">
+            <option value="30">30 seconds</option>
+            <option value="60" selected>1 minute</option>
+            <option value="120">2 minutes</option>
+            <option value="300">5 minutes</option>
+        </select>
+    </div>
+</div>
+
+<!-- Instructions -->
+<div class="card mt-2">
+    <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;">How It Works</h2>
+    <ol style="padding-left: 1.5rem; color: var(--text-secondary);">
+        <li style="margin-bottom: 0.5rem;">Click a fault type above to inject it into the demo service</li>
+        <li style="margin-bottom: 0.5rem;">The detection system polls every 60 seconds for anomalies</li>
+        <li style="margin-bottom: 0.5rem;">When an incident is detected, multiple AI agents analyze it in parallel</li>
+        <li style="margin-bottom: 0.5rem;">View the generated RCA report in the Incidents page</li>
+    </ol>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function refreshStatus() {
+    const display = document.getElementById('status-display');
+    
+    try {
+        const response = await fetch('/api/demo/status');
+        const data = await response.json();
+        
+        if (data.healthy) {
+            display.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-resolved" style="font-size: 0.9rem;">● Healthy</span>
+                    <span class="text-muted">No active faults</span>
+                </div>
+                <div class="grid grid-3 mt-2" style="gap: 1rem;">
+                    <div>
+                        <span class="text-muted">Uptime:</span>
+                        <span style="font-family: var(--font-mono);">${Math.round(data.uptime_seconds / 60)} min</span>
+                    </div>
+                    <div>
+                        <span class="text-muted">Requests:</span>
+                        <span style="font-family: var(--font-mono);">${data.request_count || 0}</span>
+                    </div>
+                    <div>
+                        <span class="text-muted">Error Rate:</span>
+                        <span style="font-family: var(--font-mono);">${((data.error_rate || 0) * 100).toFixed(1)}%</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            display.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-open" style="font-size: 0.9rem;">● Fault Active</span>
+                    <span style="font-weight: 500;">${data.current_fault}</span>
+                </div>
+                <div class="grid grid-3 mt-2" style="gap: 1rem;">
+                    <div>
+                        <span class="text-muted">Expires:</span>
+                        <span style="font-family: var(--font-mono);">${data.fault_expires_at ? formatDate(data.fault_expires_at) : 'Unknown'}</span>
+                    </div>
+                    <div>
+                        <span class="text-muted">Error Rate:</span>
+                        <span style="font-family: var(--font-mono); color: var(--error);">${((data.error_rate || 0) * 100).toFixed(1)}%</span>
+                    </div>
+                    <div>
+                        <span class="text-muted">P95 Latency:</span>
+                        <span style="font-family: var(--font-mono);">${Math.round(data.latency_p95_ms || 0)}ms</span>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        display.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="badge badge-investigating">● Unknown</span>
+                <span class="text-muted">Could not connect to demo service</span>
+            </div>
+        `;
+    }
+}
+
+async function triggerFault(faultType) {
+    const duration = document.getElementById('duration').value;
+    
+    try {
+        const response = await fetch('/api/admin/fault', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: faultType,
+                duration_seconds: parseInt(duration)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`Fault "${faultType}" activated for ${duration} seconds!`);
+            refreshStatus();
+        } else {
+            alert('Failed to trigger fault: ' + (data.message || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Failed to trigger fault: ' + error.message);
+    }
+}
+
+async function clearFault() {
+    try {
+        const response = await fetch('/api/demo/status');
+        const data = await response.json();
+        
+        if (data.healthy) {
+            alert('No active faults to clear.');
+            return;
+        }
+        
+        // The demo service has a /admin/clear endpoint
+        const clearResponse = await fetch('http://localhost:8001/admin/clear', {
+            method: 'POST'
+        });
+        
+        if (clearResponse.ok) {
+            alert('Faults cleared!');
+            refreshStatus();
+        }
+    } catch (error) {
+        // Try through the backend proxy
+        alert('Fault will expire automatically. Demo service may need direct access to clear.');
+        refreshStatus();
+    }
+}
+
+// Initial load
+refreshStatus();
+
+// Auto-refresh every 10 seconds
+setInterval(refreshStatus, 10000);
+</script>
+{% endblock %}
+

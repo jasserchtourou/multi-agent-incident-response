@@ -29,7 +29,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"  # Using 5433 externally to avoid conflict
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -42,7 +42,7 @@ services:
     image: redis:7-alpine
     container_name: incidents_redis
     ports:
-      - "6379:6379"
+      - "6380:6379"  # Using 6380 externally to avoid conflict
     volumes:
       - redis_data:/data
     healthcheck:
@@ -61,7 +61,7 @@ services:
       dockerfile: Dockerfile
     container_name: incidents_backend
     ports:
-      - "8000:8000"
+      - "8080:8000"  # Using 8080 externally to avoid conflict
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/incidents
       - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/incidents
@@ -139,7 +139,7 @@ services:
       dockerfile: Dockerfile
     container_name: incidents_demo_service
     ports:
-      - "8001:8001"
+      - "8081:8001"  # Using 8081 externally to avoid conflict
     networks:
       - incident_network
     healthcheck:

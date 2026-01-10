@@ -30,6 +30,17 @@
     .rca-content strong { @apply text-white font-semibold; }
     .rca-content hr { @apply my-6 border-base-content/10; }
     .rca-content blockquote { @apply border-l-4 border-primary pl-4 my-4 text-base-content/70 italic; }
+    
+    /* Confidence bar animation */
+    .confidence-bar {
+        transition: width 0.6s ease-out;
+    }
+    
+    /* Event type colors */
+    .event-signal { border-left-color: #f87171; }
+    .event-metric { border-left-color: #60a5fa; }
+    .event-log { border-left-color: #fbbf24; }
+    .event-agent { border-left-color: #34d399; }
 </style>
 {% endblock %}
 
@@ -46,6 +57,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
 const incidentId = window.location.pathname.split('/').pop();
+let rcaEvidence = null;
 
 async function fetchIncident() {
     try {
@@ -60,6 +72,17 @@ async function fetchIncident() {
         }
         
         const incident = await response.json();
+        
+        // Fetch RCA evidence in parallel
+        try {
+            const evidenceResponse = await fetch(`/api/incidents/${incidentId}/rca-evidence`);
+            if (evidenceResponse.ok) {
+                rcaEvidence = await evidenceResponse.json();
+            }
+        } catch (e) {
+            console.warn('Could not fetch RCA evidence:', e);
+        }
+        
         renderIncident(incident);
         
     } catch (error) {
@@ -185,6 +208,12 @@ function renderIncident(incident) {
                 <p class="font-mono text-lg font-semibold mt-1">${incident.agent_runs?.length || 0} <span class="text-base-content/50 text-sm">runs</span></p>
             </div>
         </div>
+        
+        <!-- Root Cause Candidates with Confidence -->
+        ${renderRootCauseCandidates()}
+        
+        <!-- Evidence Timeline -->
+        ${renderEvidenceTimeline()}
         
         <!-- Key Metrics -->
         ${Object.keys(metrics).length > 0 ? `
@@ -321,41 +350,8 @@ function renderIncident(incident) {
             </div>
         </div>
         
-        <!-- Timeline -->
-        ${summary.timeline && summary.timeline.length > 0 ? `
-            <div class="glass rounded-2xl p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    Incident Timeline
-                </h2>
-                <div class="space-y-4 pl-6">
-                    ${summary.timeline.map((event, idx) => `
-                        <div class="relative timeline-item pl-6">
-                            <div class="absolute left-0 top-1 w-3 h-3 rounded-full ${
-                                event.severity === 'critical' ? 'bg-error' : 
-                                event.severity === 'warning' ? 'bg-warning' : 'bg-info'
-                            }"></div>
-                            <div class="bg-base-300/30 rounded-xl p-4">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="font-mono text-sm text-base-content/50">
-                                        ${formatDate(event.timestamp)}
-                                    </span>
-                                    <span class="badge ${
-                                        event.severity === 'critical' ? 'badge-error' : 
-                                        event.severity === 'warning' ? 'badge-warning' : 'badge-info'
-                                    } badge-xs">
-                                        ${event.severity}
-                                    </span>
-                                </div>
-                                <p class="text-base-content/80">${event.event}</p>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        ` : ''}
+        <!-- Causal Graph Summary -->
+        ${renderCausalGraphSummary()}
         
         <!-- Raw Signals Data -->
         <div class="collapse collapse-arrow glass rounded-2xl">
@@ -371,6 +367,262 @@ function renderIncident(incident) {
             </div>
         </div>
     `;
+}
+
+function renderRootCauseCandidates() {
+    if (!rcaEvidence || !rcaEvidence.root_cause_candidates || rcaEvidence.root_cause_candidates.length === 0) {
+        return '';
+    }
+    
+    const candidates = rcaEvidence.root_cause_candidates;
+    
+    return `
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                Root Cause Candidates
+            </h2>
+            
+            <div class="space-y-4">
+                ${candidates.map((candidate, idx) => `
+                    <div class="bg-base-300/30 rounded-xl p-4 border-l-4 ${idx === 0 ? 'border-primary' : 'border-base-content/20'}">
+                        <div class="flex items-start justify-between gap-4 mb-3">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="badge ${idx === 0 ? 'badge-primary' : 'badge-ghost'} badge-sm">#${candidate.rank}</span>
+                                    ${candidate.component ? `<span class="badge badge-outline badge-sm">${candidate.component}</span>` : ''}
+                                    ${candidate.component_type ? `<span class="text-xs text-base-content/50">${candidate.component_type}</span>` : ''}
+                                </div>
+                                <p class="font-medium text-white">${candidate.cause}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-2xl font-bold font-mono ${getConfidenceColor(candidate.confidence)}">${(candidate.confidence * 100).toFixed(0)}%</p>
+                                <p class="text-xs text-base-content/50">confidence</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Confidence Bar -->
+                        <div class="w-full bg-base-300 rounded-full h-3 mb-4">
+                            <div class="confidence-bar h-3 rounded-full ${getConfidenceBarColor(candidate.confidence)}" 
+                                 style="width: ${candidate.confidence * 100}%"></div>
+                        </div>
+                        
+                        <!-- Evidence Summary -->
+                        ${candidate.evidence_summary && candidate.evidence_summary.length > 0 ? `
+                            <div class="mb-4">
+                                <button onclick="toggleEvidence(${idx})" class="flex items-center gap-2 text-sm text-primary hover:underline cursor-pointer">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Why this root cause?
+                                </button>
+                                <div id="evidence-${idx}" class="hidden mt-3 pl-4 border-l-2 border-primary/30">
+                                    <p class="text-sm font-medium text-base-content/70 mb-2">Supporting Evidence:</p>
+                                    <ul class="list-disc list-inside space-y-1 text-sm text-base-content/60">
+                                        ${candidate.evidence_summary.map(e => `<li>${e}</li>`).join('')}
+                                    </ul>
+                                    
+                                    ${renderDetailedEvidence(candidate)}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function renderDetailedEvidence(candidate) {
+    let html = '';
+    
+    // Correlated Metrics
+    if (candidate.correlated_metrics && candidate.correlated_metrics.length > 0) {
+        html += `
+            <div class="mt-4">
+                <p class="text-sm font-medium text-base-content/70 mb-2">Correlated Metrics:</p>
+                <div class="grid grid-cols-2 gap-2">
+                    ${candidate.correlated_metrics.map(m => `
+                        <div class="bg-base-300/50 rounded p-2 text-xs">
+                            <span class="font-mono">${m.metric_name}</span>
+                            <span class="float-right">${m.value.toFixed(2)} ${m.unit || ''}</span>
+                            <div class="w-full bg-base-300 rounded-full h-1 mt-1">
+                                <div class="h-1 rounded-full bg-info" style="width: ${m.correlation_strength * 100}%"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Log Patterns
+    if (candidate.log_patterns && candidate.log_patterns.length > 0) {
+        html += `
+            <div class="mt-4">
+                <p class="text-sm font-medium text-base-content/70 mb-2">Log Patterns:</p>
+                <div class="space-y-1">
+                    ${candidate.log_patterns.map(p => `
+                        <div class="bg-base-300/50 rounded p-2 text-xs font-mono flex justify-between">
+                            <span class="truncate">${p.pattern}</span>
+                            <span class="badge badge-ghost badge-xs ml-2">${p.occurrences}x</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Temporal Evidence
+    if (candidate.temporal_evidence && candidate.temporal_evidence.length > 0) {
+        html += `
+            <div class="mt-4">
+                <p class="text-sm font-medium text-base-content/70 mb-2">Temporal Ordering:</p>
+                <div class="space-y-1 text-xs">
+                    ${candidate.temporal_evidence.map(t => `
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-primary"></span>
+                            <span>${t.event}</span>
+                            ${t.precedes && t.precedes.length > 0 ? `
+                                <span class="text-base-content/50">→ precedes: ${t.precedes.join(', ')}</span>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Causal Chain
+    if (candidate.causal_chain && candidate.causal_chain.length > 0) {
+        html += `
+            <div class="mt-4">
+                <p class="text-sm font-medium text-base-content/70 mb-2">Causal Chain:</p>
+                <div class="flex items-center gap-2 flex-wrap text-xs">
+                    ${candidate.causal_chain.map((step, i) => `
+                        <div class="flex items-center gap-2">
+                            <span class="badge ${step.is_root ? 'badge-error' : 'badge-ghost'}">${step.component}</span>
+                            ${i < candidate.causal_chain.length - 1 ? '<span class="text-base-content/50">→</span>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html;
+}
+
+function renderEvidenceTimeline() {
+    if (!rcaEvidence || !rcaEvidence.timeline || !rcaEvidence.timeline.events || rcaEvidence.timeline.events.length === 0) {
+        return '';
+    }
+    
+    const events = rcaEvidence.timeline.events;
+    
+    return `
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Evidence Timeline
+                <span class="badge badge-ghost badge-sm ml-2">${events.length} events</span>
+            </h2>
+            <div class="space-y-3 pl-6">
+                ${events.map((event, idx) => `
+                    <div class="relative timeline-item pl-6 border-l-2 event-${event.event_type}">
+                        <div class="absolute left-0 top-2 w-3 h-3 rounded-full -translate-x-[7px] ${
+                            event.severity === 'critical' ? 'bg-error' : 
+                            event.severity === 'warning' ? 'bg-warning' : 'bg-info'
+                        }"></div>
+                        <div class="bg-base-300/30 rounded-lg p-3">
+                            <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                ${event.timestamp ? `
+                                    <span class="font-mono text-xs text-base-content/50">
+                                        ${formatDate(event.timestamp)}
+                                    </span>
+                                ` : ''}
+                                <span class="badge ${
+                                    event.severity === 'critical' ? 'badge-error' : 
+                                    event.severity === 'warning' ? 'badge-warning' : 'badge-info'
+                                } badge-xs">
+                                    ${event.severity}
+                                </span>
+                                <span class="badge badge-ghost badge-xs">${event.event_type}</span>
+                                ${event.component ? `<span class="text-xs text-base-content/50">${event.component}</span>` : ''}
+                            </div>
+                            <p class="text-sm text-base-content/80">${event.event}</p>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function renderCausalGraphSummary() {
+    if (!rcaEvidence || !rcaEvidence.causal_graph_summary || !rcaEvidence.causal_graph_summary.graph_analysis_available) {
+        return '';
+    }
+    
+    const summary = rcaEvidence.causal_graph_summary;
+    
+    return `
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                </svg>
+                Causal Graph Analysis
+            </h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div class="bg-base-300/50 rounded-xl p-4 text-center">
+                    <p class="text-3xl font-bold font-mono text-primary">${summary.node_count}</p>
+                    <p class="text-xs text-base-content/50">Components Analyzed</p>
+                </div>
+                <div class="bg-base-300/50 rounded-xl p-4 text-center">
+                    <p class="text-3xl font-bold font-mono text-info">${summary.edge_count}</p>
+                    <p class="text-xs text-base-content/50">Dependencies Found</p>
+                </div>
+                <div class="bg-base-300/50 rounded-xl p-4 text-center col-span-2">
+                    <p class="text-sm font-medium text-base-content/80">Root Candidates</p>
+                    <div class="flex flex-wrap gap-1 justify-center mt-2">
+                        ${summary.root_candidates.map((c, i) => `
+                            <span class="badge ${i === 0 ? 'badge-error' : 'badge-ghost'} badge-sm">${c}</span>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+            ${summary.primary_causal_chain ? `
+                <div class="bg-base-300/30 rounded-xl p-4">
+                    <p class="text-sm font-medium text-base-content/70 mb-2">Primary Causal Chain:</p>
+                    <p class="font-mono text-sm text-primary">${summary.primary_causal_chain}</p>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+function toggleEvidence(idx) {
+    const el = document.getElementById(`evidence-${idx}`);
+    if (el) {
+        el.classList.toggle('hidden');
+    }
+}
+
+function getConfidenceColor(confidence) {
+    if (confidence >= 0.8) return 'text-success';
+    if (confidence >= 0.5) return 'text-warning';
+    return 'text-error';
+}
+
+function getConfidenceBarColor(confidence) {
+    if (confidence >= 0.8) return 'bg-success';
+    if (confidence >= 0.5) return 'bg-warning';
+    return 'bg-error';
 }
 
 function getAgentIcon(agentName) {

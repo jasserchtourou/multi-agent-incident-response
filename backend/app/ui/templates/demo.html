@@ -174,6 +174,108 @@
     </div>
 </div>
 
+<!-- Chaos Engineering Section -->
+<div class="glass rounded-2xl p-6 mb-8">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+            </svg>
+            Chaos Engineering Lab
+            <span class="badge badge-accent badge-sm">New</span>
+        </h2>
+        <button onclick="toggleChaosPanel()" class="btn btn-sm btn-outline btn-accent gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            <span id="chaos-toggle-text">Show</span>
+        </button>
+    </div>
+    
+    <div id="chaos-panel" class="hidden">
+        <!-- Ground Truth Info -->
+        <div class="mb-6">
+            <h3 class="font-medium text-base-content/80 mb-3">Ground Truth Definitions</h3>
+            <p class="text-sm text-base-content/60 mb-4">Each fault type has expected outcomes for automated validation:</p>
+            <div class="overflow-x-auto">
+                <table class="table table-sm">
+                    <thead>
+                        <tr class="text-base-content/60">
+                            <th>Fault Type</th>
+                            <th>Expected Component</th>
+                            <th>Max Detection Time</th>
+                            <th>Keywords</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ground-truth-table">
+                        <tr>
+                            <td colspan="4" class="text-center text-base-content/50">
+                                <span class="loading loading-dots loading-sm"></span> Loading...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Run Experiment -->
+        <div class="divider"></div>
+        <div class="mb-6">
+            <h3 class="font-medium text-base-content/80 mb-3">Run Automated Experiment</h3>
+            <p class="text-sm text-base-content/60 mb-4">Run a fault injection experiment with automatic RCA validation:</p>
+            
+            <div class="flex flex-wrap gap-4 items-end">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Fault Type</span></label>
+                    <select id="experiment-fault-type" class="select select-bordered select-sm w-48">
+                        <option value="error_rate">Error Rate Spike</option>
+                        <option value="latency_spike">Latency Spike</option>
+                        <option value="db_slow">Database Slowdown</option>
+                        <option value="memory_leak">Memory Leak</option>
+                        <option value="dependency_down">Dependency Down</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Duration</span></label>
+                    <select id="experiment-duration" class="select select-bordered select-sm w-32">
+                        <option value="30">30 seconds</option>
+                        <option value="60" selected>60 seconds</option>
+                        <option value="120">2 minutes</option>
+                    </select>
+                </div>
+                <button onclick="runExperiment()" class="btn btn-accent btn-sm gap-2" id="run-experiment-btn">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Run Experiment
+                </button>
+            </div>
+        </div>
+        
+        <!-- Experiment Results -->
+        <div id="experiment-results" class="hidden">
+            <div class="divider"></div>
+            <h3 class="font-medium text-base-content/80 mb-3">Experiment Results</h3>
+            <div id="experiment-results-content"></div>
+        </div>
+        
+        <!-- Full Test Schedule -->
+        <div class="divider"></div>
+        <div>
+            <h3 class="font-medium text-base-content/80 mb-3">Full Coverage Test</h3>
+            <p class="text-sm text-base-content/60 mb-4">Run all fault types sequentially with 2-minute intervals:</p>
+            <button onclick="runFullSchedule()" class="btn btn-outline btn-sm gap-2" id="run-schedule-btn">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Run Full Schedule (~15 min)
+            </button>
+            <span class="text-xs text-base-content/50 ml-3">Tests all 5 fault types with evaluation</span>
+        </div>
+    </div>
+</div>
+
 <!-- How It Works -->
 <div class="glass rounded-2xl p-6">
     <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
@@ -367,6 +469,308 @@ async function clearFault() {
         showToast('Fault will expire automatically', 'warning');
         refreshStatus();
     }
+}
+
+// ========== Chaos Engineering Functions ==========
+
+function toggleChaosPanel() {
+    const panel = document.getElementById('chaos-panel');
+    const toggleText = document.getElementById('chaos-toggle-text');
+    
+    if (panel.classList.contains('hidden')) {
+        panel.classList.remove('hidden');
+        toggleText.textContent = 'Hide';
+        loadGroundTruths();
+    } else {
+        panel.classList.add('hidden');
+        toggleText.textContent = 'Show';
+    }
+}
+
+async function loadGroundTruths() {
+    const table = document.getElementById('ground-truth-table');
+    
+    try {
+        const response = await fetch('/api/chaos/faults');
+        const faults = await response.json();
+        
+        table.innerHTML = faults.map(f => `
+            <tr class="hover">
+                <td>
+                    <span class="font-mono text-sm">${f.fault_type}</span>
+                    <p class="text-xs text-base-content/50">${f.display_name}</p>
+                </td>
+                <td>
+                    <span class="badge badge-outline badge-sm">${f.expected_component}</span>
+                </td>
+                <td>
+                    <span class="font-mono">${f.max_detection_time_seconds}s</span>
+                </td>
+                <td>
+                    <div class="flex flex-wrap gap-1">
+                        ${f.expected_root_cause_keywords.slice(0, 3).map(k => 
+                            `<span class="badge badge-ghost badge-xs">${k}</span>`
+                        ).join('')}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        table.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-error">
+                    Failed to load ground truths: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+async function runExperiment() {
+    const btn = document.getElementById('run-experiment-btn');
+    const faultType = document.getElementById('experiment-fault-type').value;
+    const duration = parseInt(document.getElementById('experiment-duration').value);
+    const resultsDiv = document.getElementById('experiment-results');
+    const resultsContent = document.getElementById('experiment-results-content');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Running...';
+    
+    resultsDiv.classList.remove('hidden');
+    resultsContent.innerHTML = `
+        <div class="alert alert-info">
+            <span class="loading loading-spinner loading-sm"></span>
+            <div>
+                <p class="font-medium">Experiment Running</p>
+                <p class="text-sm">Injecting ${faultType} fault for ${duration}s, then waiting for detection and analysis...</p>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/api/chaos/experiments/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fault_type: faultType,
+                fault_duration_seconds: duration,
+                wait_for_analysis: true,
+                analysis_timeout_seconds: 180
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            displayExperimentResult(result);
+        } else {
+            resultsContent.innerHTML = `
+                <div class="alert alert-error">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Experiment failed: ${result.detail || 'Unknown error'}</span>
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultsContent.innerHTML = `
+            <div class="alert alert-error">
+                <span>Failed to run experiment: ${error.message}</span>
+            </div>
+        `;
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        Run Experiment
+    `;
+}
+
+function displayExperimentResult(result) {
+    const content = document.getElementById('experiment-results-content');
+    const successIcon = result.success ? '✅' : '❌';
+    const successClass = result.success ? 'alert-success' : 'alert-warning';
+    
+    content.innerHTML = `
+        <div class="alert ${successClass} mb-4">
+            <span class="text-2xl">${successIcon}</span>
+            <div>
+                <p class="font-medium">${result.success ? 'Experiment Passed!' : 'Experiment Issues Detected'}</p>
+                <p class="text-sm">${result.fault_type} - Duration: ${result.fault_duration_seconds}s</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">Detection</p>
+                <p class="font-semibold ${result.detection.incident_detected ? 'text-success' : 'text-error'}">
+                    ${result.detection.incident_detected ? 'Yes' : 'No'}
+                </p>
+            </div>
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">Detection Time</p>
+                <p class="font-mono font-semibold">
+                    ${result.detection.detection_time_seconds ? result.detection.detection_time_seconds.toFixed(1) + 's' : 'N/A'}
+                </p>
+            </div>
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">RCA Match</p>
+                <p class="font-semibold ${result.root_cause.matches_ground_truth ? 'text-success' : 'text-warning'}">
+                    ${result.root_cause.matches_ground_truth ? 'Yes' : 'No'}
+                </p>
+            </div>
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">Confidence</p>
+                <p class="font-mono font-semibold">
+                    ${(result.root_cause.confidence * 100).toFixed(0)}%
+                </p>
+            </div>
+        </div>
+        
+        <div class="collapse collapse-arrow bg-base-200/50 rounded-lg">
+            <input type="checkbox" />
+            <div class="collapse-title font-medium">Metrics Details</div>
+            <div class="collapse-content">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                    <div><span class="text-base-content/60">Precision:</span> <span class="font-mono">${(result.metrics.precision * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-base-content/60">Recall:</span> <span class="font-mono">${(result.metrics.recall * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-base-content/60">F1 Score:</span> <span class="font-mono">${(result.metrics.f1_score * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-base-content/60">RCA Accuracy:</span> <span class="font-mono">${(result.metrics.root_cause_accuracy * 100).toFixed(0)}%</span></div>
+                    <div><span class="text-base-content/60">Identified Cause:</span> <span class="font-mono text-xs">${result.root_cause.identified_cause || 'None'}</span></div>
+                    <div><span class="text-base-content/60">Component:</span> <span class="badge badge-sm">${result.root_cause.identified_component || 'Unknown'}</span></div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function runFullSchedule() {
+    const btn = document.getElementById('run-schedule-btn');
+    
+    showToast('Creating full coverage test schedule...', 'info');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Creating...';
+    
+    try {
+        // Create schedule
+        const createResponse = await fetch('/api/chaos/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: 'Full Coverage Test',
+                fault_types: [],  // All types
+                fault_duration_seconds: 60,
+                interval_between_experiments_seconds: 120
+            })
+        });
+        
+        const schedule = await createResponse.json();
+        
+        if (!createResponse.ok) {
+            throw new Error(schedule.detail || 'Failed to create schedule');
+        }
+        
+        showToast(`Schedule created! Running ${schedule.total_experiments} experiments...`, 'success');
+        btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Running...';
+        
+        // Run schedule
+        const runResponse = await fetch(`/api/chaos/schedules/${schedule.id}/run`, {
+            method: 'POST'
+        });
+        
+        const result = await runResponse.json();
+        
+        if (runResponse.ok) {
+            showToast('Full schedule completed! Check results below.', 'success');
+            displayScheduleResults(result);
+        } else {
+            throw new Error(result.detail || 'Schedule run failed');
+        }
+        
+    } catch (error) {
+        showToast('Schedule failed: ' + error.message, 'error');
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = `
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Run Full Schedule (~15 min)
+    `;
+}
+
+function displayScheduleResults(schedule) {
+    const resultsDiv = document.getElementById('experiment-results');
+    const content = document.getElementById('experiment-results-content');
+    
+    resultsDiv.classList.remove('hidden');
+    
+    const metrics = schedule.aggregate_metrics || {};
+    const successCount = schedule.results.filter(r => r.success).length;
+    
+    content.innerHTML = `
+        <div class="alert ${successCount === schedule.results.length ? 'alert-success' : 'alert-warning'} mb-4">
+            <span class="text-2xl">${successCount === schedule.results.length ? '🎉' : '⚠️'}</span>
+            <div>
+                <p class="font-medium">Schedule Complete: ${successCount}/${schedule.results.length} Passed</p>
+                <p class="text-sm">${schedule.name}</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">Precision</p>
+                <p class="font-mono text-xl font-bold">${((metrics.precision || 0) * 100).toFixed(0)}%</p>
+            </div>
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">Recall</p>
+                <p class="font-mono text-xl font-bold">${((metrics.recall || 0) * 100).toFixed(0)}%</p>
+            </div>
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">Mean TTD</p>
+                <p class="font-mono text-xl font-bold">${metrics.mean_time_to_detection ? metrics.mean_time_to_detection.toFixed(1) + 's' : 'N/A'}</p>
+            </div>
+            <div class="stat-card-gradient rounded-xl p-4">
+                <p class="text-xs text-base-content/60 mb-1">RCA Accuracy</p>
+                <p class="font-mono text-xl font-bold">${((metrics.root_cause_accuracy || 0) * 100).toFixed(0)}%</p>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr class="text-base-content/60">
+                        <th>Fault</th>
+                        <th>Detected</th>
+                        <th>TTD</th>
+                        <th>RCA Match</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${schedule.results.map(r => `
+                        <tr class="hover">
+                            <td class="font-mono text-sm">${r.fault_type}</td>
+                            <td>${r.detection.incident_detected ? '✅' : '❌'}</td>
+                            <td class="font-mono">${r.detection.detection_time_seconds ? r.detection.detection_time_seconds.toFixed(1) + 's' : '-'}</td>
+                            <td>${r.root_cause.matches_ground_truth ? '✅' : '❌'}</td>
+                            <td>
+                                <span class="badge ${r.success ? 'badge-success' : 'badge-warning'} badge-sm">
+                                    ${r.success ? 'Pass' : 'Fail'}
+                                </span>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
 }
 
 // Initial load

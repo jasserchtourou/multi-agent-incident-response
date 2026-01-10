@@ -15,7 +15,8 @@ from app.api.schemas import (
     IncidentListResponse, AgentRunResponse, FaultRequest, FaultResponse,
     DemoStatusResponse, HealthResponse, RerunRequest, RerunResponse,
     RCAEvidenceResponse, EvidenceTimeline, TimelineEvent, RootCauseCandidate,
-    CausalGraphSummary, CorrelatedMetricEvidence, LogPatternEvidence,
+    CausalGraphSummary, CausalGraphNode, CausalGraphEdge,
+    CorrelatedMetricEvidence, LogPatternEvidence,
     TemporalEvidence, CausalChainStep,
     # Chaos Engineering
     FaultGroundTruthResponse, ChaosExperimentCreate, ChaosExperimentResponse,
@@ -468,7 +469,7 @@ def _build_root_cause_candidates(
 
 
 def _build_causal_graph_summary(root_cause_output: Optional[dict]) -> CausalGraphSummary:
-    """Build causal graph summary from root cause output."""
+    """Build causal graph summary from root cause output with visualization data."""
     if not root_cause_output:
         return CausalGraphSummary(graph_analysis_available=False)
     
@@ -477,12 +478,84 @@ def _build_causal_graph_summary(root_cause_output: Optional[dict]) -> CausalGrap
     if not graph_summary:
         return CausalGraphSummary(graph_analysis_available=False)
     
+    # Build nodes for visualization
+    nodes = []
+    edges = []
+    root_candidates = graph_summary.get("root_candidates", [])
+    
+    # Extract nodes from graph summary if available
+    if graph_summary.get("nodes"):
+        for node_data in graph_summary["nodes"]:
+            nodes.append(CausalGraphNode(
+                id=node_data.get("id", ""),
+                label=node_data.get("name", node_data.get("id", "")),
+                node_type=node_data.get("node_type", "service"),
+                anomaly_score=node_data.get("anomaly_score", 0),
+                is_root_candidate=node_data.get("id", "") in root_candidates,
+                metadata=node_data.get("metadata", {})
+            ))
+    
+    # Extract edges from graph summary if available
+    if graph_summary.get("edges"):
+        for edge_data in graph_summary["edges"]:
+            edges.append(CausalGraphEdge(
+                source=edge_data.get("source", ""),
+                target=edge_data.get("target", ""),
+                relationship=edge_data.get("relationship", "depends_on"),
+                weight=edge_data.get("weight", 0.5),
+                label=edge_data.get("label")
+            ))
+    
+    # If no nodes/edges in summary, try to build from hypotheses
+    if not nodes and root_cause_output.get("hypotheses"):
+        seen_nodes = set()
+        for hyp in root_cause_output["hypotheses"]:
+            # Add component as node
+            component = hyp.get("component")
+            if component and component not in seen_nodes:
+                seen_nodes.add(component)
+                nodes.append(CausalGraphNode(
+                    id=component.lower().replace(" ", "_"),
+                    label=component,
+                    node_type=hyp.get("component_type", "service"),
+                    anomaly_score=hyp.get("confidence", 0),
+                    is_root_candidate=True
+                ))
+            
+            # Add causal chain nodes and edges
+            structured = hyp.get("structured_evidence", {})
+            causal_path = structured.get("causal_path", {})
+            if causal_path:
+                path_nodes = causal_path.get("nodes", [])
+                for i, node in enumerate(path_nodes):
+                    node_id = node.get("id", f"node_{i}")
+                    if node_id not in seen_nodes:
+                        seen_nodes.add(node_id)
+                        nodes.append(CausalGraphNode(
+                            id=node_id,
+                            label=node.get("name", node_id),
+                            node_type=node.get("node_type", "service"),
+                            anomaly_score=node.get("anomaly_score", 0),
+                            is_root_candidate=node.get("is_root", False)
+                        ))
+                
+                path_edges = causal_path.get("edges", [])
+                for edge in path_edges:
+                    edges.append(CausalGraphEdge(
+                        source=edge.get("source", ""),
+                        target=edge.get("target", ""),
+                        relationship=edge.get("relationship", "causes"),
+                        weight=edge.get("weight", 0.5)
+                    ))
+    
     return CausalGraphSummary(
-        node_count=graph_summary.get("node_count", 0),
-        edge_count=graph_summary.get("edge_count", 0),
-        root_candidates=graph_summary.get("root_candidates", []),
+        node_count=graph_summary.get("node_count", len(nodes)),
+        edge_count=graph_summary.get("edge_count", len(edges)),
+        root_candidates=root_candidates,
         primary_causal_chain=graph_summary.get("primary_causal_chain"),
-        graph_analysis_available=True
+        graph_analysis_available=True,
+        nodes=nodes,
+        edges=edges
     )
 
 

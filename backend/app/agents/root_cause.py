@@ -13,6 +13,8 @@ from app.agents.schemas import (
     CausalPathNode,
     CausalPathEdge,
     CausalGraphSummary,
+    CausalGraphNodeData,
+    CausalGraphEdgeData,
 )
 from app.services.causal_graph import (
     CausalGraph,
@@ -164,13 +166,8 @@ Provide your analysis as JSON matching the required schema."""
             hypotheses = self._generate_hypotheses_from_graph(graph, root_cause_summaries)
             most_likely = self._determine_most_likely(hypotheses, graph)
             
-            # Build causal graph summary
-            causal_summary = CausalGraphSummary(
-                node_count=len(graph.nodes),
-                edge_count=len(graph.edges),
-                root_candidates=[h.component or h.cause[:50] for h in hypotheses[:3]],
-                primary_causal_chain=self._build_causal_chain_description(graph, hypotheses)
-            )
+            # Build causal graph summary with visualization data
+            causal_summary = self._build_graph_summary(graph, hypotheses)
             
             # If LLM is available, use it to refine the analysis
             if self.api_key:
@@ -490,6 +487,53 @@ Provide your analysis as JSON matching the required schema."""
         
         return f"{top.component or 'Unknown'} → downstream services"
     
+    def _build_graph_summary(
+        self,
+        graph: CausalGraph,
+        hypotheses: List[Hypothesis]
+    ) -> CausalGraphSummary:
+        """Build causal graph summary with full visualization data."""
+        # Get root candidates from hypotheses
+        root_candidates = [h.component or h.cause[:50] for h in hypotheses[:3]]
+        
+        # Build node visualization data
+        nodes = []
+        for node_id, node in graph.nodes.items():
+            nodes.append(CausalGraphNodeData(
+                id=node_id,
+                name=node.name,
+                node_type=node.node_type.value if hasattr(node.node_type, 'value') else str(node.node_type),
+                anomaly_score=min(1.0, max(0.0, node.anomaly_score)),
+                is_root=node_id in root_candidates or node.name in root_candidates,
+                metadata={
+                    "error_count": getattr(node, 'error_count', 0),
+                    "first_seen": node.first_seen.isoformat() if node.first_seen else None,
+                }
+            ))
+        
+        # Build edge visualization data
+        edges = []
+        for edge_id, edge in graph.edges.items():
+            source_node = graph.get_node(edge.source_id)
+            target_node = graph.get_node(edge.target_id)
+            
+            edges.append(CausalGraphEdgeData(
+                source=edge.source_id,
+                target=edge.target_id,
+                relationship=edge.relation_type.value if hasattr(edge.relation_type, 'value') else str(edge.relation_type),
+                weight=min(1.0, max(0.0, edge.final_weight)),
+                label=f"{source_node.name if source_node else edge.source_id} → {target_node.name if target_node else edge.target_id}"
+            ))
+        
+        return CausalGraphSummary(
+            node_count=len(graph.nodes),
+            edge_count=len(graph.edges),
+            root_candidates=root_candidates,
+            primary_causal_chain=self._build_causal_chain_description(graph, hypotheses),
+            nodes=nodes,
+            edges=edges
+        )
+    
     def _extract_correlations(self, graph: CausalGraph) -> List[Dict[str, Any]]:
         """Extract top correlations from the graph."""
         correlations = []
@@ -617,12 +661,7 @@ Provide your analysis as JSON matching the required schema."""
             hypotheses = self._generate_hypotheses_from_graph(graph, summaries)
             most_likely = self._determine_most_likely(hypotheses, graph)
             
-            causal_summary = CausalGraphSummary(
-                node_count=len(graph.nodes),
-                edge_count=len(graph.edges),
-                root_candidates=[h.component or h.cause[:50] for h in hypotheses[:3]],
-                primary_causal_chain=self._build_causal_chain_description(graph, hypotheses)
-            )
+            causal_summary = self._build_graph_summary(graph, hypotheses)
             
             return RootCauseAgentOutput(
                 hypotheses=hypotheses,

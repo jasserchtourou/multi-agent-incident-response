@@ -200,13 +200,35 @@ class RootCauseCandidate(BaseModel):
     causal_chain: List[CausalChainStep] = Field(default_factory=list)
 
 
+class CausalGraphNode(BaseModel):
+    """A node in the causal graph for visualization."""
+    id: str
+    label: str
+    node_type: str  # database, service, metric, log_source, external
+    anomaly_score: float = Field(ge=0, le=1, default=0)
+    is_root_candidate: bool = False
+    metadata: dict = Field(default_factory=dict)
+
+
+class CausalGraphEdge(BaseModel):
+    """An edge in the causal graph for visualization."""
+    source: str
+    target: str
+    relationship: str  # causes, correlates_with, depends_on, triggers
+    weight: float = Field(ge=0, le=1, default=0.5)
+    label: Optional[str] = None
+
+
 class CausalGraphSummary(BaseModel):
-    """Summary of the causal graph analysis."""
+    """Summary of the causal graph analysis with visualization data."""
     node_count: int = 0
     edge_count: int = 0
     root_candidates: List[str] = Field(default_factory=list)
     primary_causal_chain: Optional[str] = None
     graph_analysis_available: bool = False
+    # Visualization data
+    nodes: List[CausalGraphNode] = Field(default_factory=list)
+    edges: List[CausalGraphEdge] = Field(default_factory=list)
 
 
 class RCAEvidenceResponse(BaseModel):

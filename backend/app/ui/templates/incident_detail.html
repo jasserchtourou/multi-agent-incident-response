@@ -85,6 +85,11 @@ async function fetchIncident() {
         
         renderIncident(incident);
         
+        // Initialize the causal graph visualization after rendering
+        setTimeout(() => {
+            initCausalGraph();
+        }, 100);
+        
     } catch (error) {
         console.error('Failed to fetch incident:', error);
         renderError(error.message);
@@ -569,6 +574,7 @@ function renderCausalGraphSummary() {
     }
     
     const summary = rcaEvidence.causal_graph_summary;
+    const hasGraphData = summary.nodes && summary.nodes.length > 0;
     
     return `
         <div class="glass rounded-2xl p-6 mb-8">
@@ -577,15 +583,18 @@ function renderCausalGraphSummary() {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                 </svg>
                 Causal Graph Analysis
+                ${hasGraphData ? '<span class="badge badge-accent badge-sm ml-2">Interactive</span>' : ''}
             </h2>
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            
+            <!-- Stats Row -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div class="bg-base-300/50 rounded-xl p-4 text-center">
                     <p class="text-3xl font-bold font-mono text-primary">${summary.node_count}</p>
-                    <p class="text-xs text-base-content/50">Components Analyzed</p>
+                    <p class="text-xs text-base-content/50">Components</p>
                 </div>
                 <div class="bg-base-300/50 rounded-xl p-4 text-center">
                     <p class="text-3xl font-bold font-mono text-info">${summary.edge_count}</p>
-                    <p class="text-xs text-base-content/50">Dependencies Found</p>
+                    <p class="text-xs text-base-content/50">Dependencies</p>
                 </div>
                 <div class="bg-base-300/50 rounded-xl p-4 text-center col-span-2">
                     <p class="text-sm font-medium text-base-content/80">Root Candidates</p>
@@ -596,6 +605,49 @@ function renderCausalGraphSummary() {
                     </div>
                 </div>
             </div>
+            
+            <!-- Interactive Graph Visualization -->
+            ${hasGraphData ? `
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-medium text-base-content/80">Dependency Graph</p>
+                        <div class="flex gap-2">
+                            <button onclick="resetGraphView()" class="btn btn-ghost btn-xs gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                Reset View
+                            </button>
+                        </div>
+                    </div>
+                    <div id="causal-graph-container" class="bg-base-300/30 rounded-xl" style="height: 400px; position: relative;">
+                        <div id="causal-graph" style="width: 100%; height: 100%;"></div>
+                    </div>
+                    <div class="flex flex-wrap gap-4 mt-3 text-xs text-base-content/60">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-error"></div>
+                            <span>Root Cause</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-warning"></div>
+                            <span>High Anomaly</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-info"></div>
+                            <span>Database</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-primary"></div>
+                            <span>Service</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full bg-secondary"></div>
+                            <span>External</span>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            
             ${summary.primary_causal_chain ? `
                 <div class="bg-base-300/30 rounded-xl p-4">
                     <p class="text-sm font-medium text-base-content/70 mb-2">Primary Causal Chain:</p>
@@ -604,6 +656,187 @@ function renderCausalGraphSummary() {
             ` : ''}
         </div>
     `;
+}
+
+// Graph visualization using vis.js
+let graphNetwork = null;
+
+function initCausalGraph() {
+    if (!rcaEvidence || !rcaEvidence.causal_graph_summary) return;
+    
+    const summary = rcaEvidence.causal_graph_summary;
+    if (!summary.nodes || summary.nodes.length === 0) return;
+    
+    const container = document.getElementById('causal-graph');
+    if (!container) return;
+    
+    // Node type colors
+    const typeColors = {
+        'database': '#38bdf8',      // info/blue
+        'service': '#818cf8',       // primary/purple
+        'external': '#c084fc',      // secondary/violet
+        'cache': '#34d399',         // success/green
+        'metric': '#fbbf24',        // warning/yellow
+        'log_source': '#f472b6',    // pink
+        'default': '#94a3b8'        // gray
+    };
+    
+    // Build nodes with styling
+    const nodes = summary.nodes.map(node => {
+        const isRoot = node.is_root_candidate;
+        const hasHighAnomaly = node.anomaly_score > 0.7;
+        
+        // Determine node color
+        let color = typeColors[node.node_type] || typeColors.default;
+        if (isRoot) color = '#f87171';  // error/red for root cause
+        else if (hasHighAnomaly) color = '#fbbf24';  // warning/yellow
+        
+        // Node size based on anomaly score
+        const size = 20 + (node.anomaly_score * 30);
+        
+        return {
+            id: node.id,
+            label: node.label || node.id,
+            title: `${node.label}\nType: ${node.node_type}\nAnomaly: ${(node.anomaly_score * 100).toFixed(0)}%${isRoot ? '\n⚠️ ROOT CAUSE CANDIDATE' : ''}`,
+            color: {
+                background: color,
+                border: isRoot ? '#dc2626' : '#1e293b',
+                highlight: {
+                    background: color,
+                    border: '#fff'
+                }
+            },
+            borderWidth: isRoot ? 3 : 1,
+            size: size,
+            font: {
+                color: '#fff',
+                size: 12,
+                face: 'Inter, sans-serif'
+            },
+            shadow: {
+                enabled: isRoot,
+                color: 'rgba(248, 113, 113, 0.5)',
+                size: 10
+            }
+        };
+    });
+    
+    // Build edges with styling
+    const edges = summary.edges.map((edge, i) => {
+        const width = 1 + (edge.weight * 3);
+        
+        // Edge color based on relationship type
+        const edgeColors = {
+            'causes': '#f87171',
+            'triggers': '#fb923c',
+            'depends_on': '#818cf8',
+            'correlates_with': '#38bdf8',
+            'default': '#64748b'
+        };
+        
+        return {
+            id: `edge_${i}`,
+            from: edge.source,
+            to: edge.target,
+            arrows: {
+                to: {
+                    enabled: true,
+                    scaleFactor: 0.5
+                }
+            },
+            width: width,
+            color: {
+                color: edgeColors[edge.relationship] || edgeColors.default,
+                highlight: '#fff',
+                opacity: 0.8
+            },
+            smooth: {
+                type: 'curvedCW',
+                roundness: 0.2
+            },
+            title: edge.label || `${edge.source} → ${edge.target}`,
+            font: {
+                size: 10,
+                color: '#94a3b8',
+                strokeWidth: 0
+            }
+        };
+    });
+    
+    // Network data
+    const data = {
+        nodes: new vis.DataSet(nodes),
+        edges: new vis.DataSet(edges)
+    };
+    
+    // Network options
+    const options = {
+        physics: {
+            enabled: true,
+            solver: 'forceAtlas2Based',
+            forceAtlas2Based: {
+                gravitationalConstant: -50,
+                centralGravity: 0.01,
+                springLength: 150,
+                springConstant: 0.08
+            },
+            stabilization: {
+                iterations: 100,
+                fit: true
+            }
+        },
+        interaction: {
+            hover: true,
+            tooltipDelay: 100,
+            zoomView: true,
+            dragView: true
+        },
+        layout: {
+            improvedLayout: true
+        },
+        nodes: {
+            shape: 'dot',
+            scaling: {
+                min: 15,
+                max: 50
+            }
+        },
+        edges: {
+            smooth: {
+                type: 'continuous'
+            }
+        }
+    };
+    
+    // Create network
+    graphNetwork = new vis.Network(container, data, options);
+    
+    // Stop physics after stabilization for better performance
+    graphNetwork.on('stabilized', function() {
+        graphNetwork.setOptions({ physics: { enabled: false } });
+    });
+    
+    // Click handler for nodes
+    graphNetwork.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            const node = summary.nodes.find(n => n.id === nodeId);
+            if (node) {
+                console.log('Selected node:', node);
+            }
+        }
+    });
+}
+
+function resetGraphView() {
+    if (graphNetwork) {
+        graphNetwork.fit({
+            animation: {
+                duration: 500,
+                easingFunction: 'easeInOutQuad'
+            }
+        });
+    }
 }
 
 function toggleEvidence(idx) {

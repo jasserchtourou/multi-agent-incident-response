@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     # Data Mode: "simulated" or "prometheus_loki"
     DATA_MODE: str = "simulated"
     
-    # OpenAI
-    OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4-turbo-preview"
+    # Groq LLM
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     
     # Detection thresholds
     ERROR_RATE_THRESHOLD: float = 0.05  # 5%

@@ -10,7 +10,7 @@ class MetricInfo(BaseModel):
     name: str
     value: float
     unit: str
-    status: str = Field(description="normal, warning, or critical")
+    status: str = Field(default="normal", description="normal, warning, or critical")
 
 
 class TimelineEvent(BaseModel):

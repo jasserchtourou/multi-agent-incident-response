@@ -1,12 +1,43 @@
 {% extends "base.html" %}
 
-{% block title %}Incident Detail - Multi-Agent Incident Response{% endblock %}
+{% block title %}Incident Detail - IncidentAI{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 24px;
+        bottom: -24px;
+        width: 2px;
+        background: linear-gradient(to bottom, rgba(102, 126, 234, 0.5), transparent);
+    }
+    
+    .timeline-item:last-child::before {
+        display: none;
+    }
+    
+    .rca-content h1 { @apply text-2xl font-bold mt-6 mb-4 text-white; }
+    .rca-content h2 { @apply text-xl font-semibold mt-5 mb-3 text-primary; }
+    .rca-content h3 { @apply text-lg font-medium mt-4 mb-2 text-white/90; }
+    .rca-content p { @apply my-3 text-base-content/80 leading-relaxed; }
+    .rca-content ul, .rca-content ol { @apply my-3 pl-6 space-y-2; }
+    .rca-content li { @apply text-base-content/80; }
+    .rca-content code { @apply bg-base-300 px-2 py-0.5 rounded text-sm font-mono text-primary; }
+    .rca-content pre { @apply bg-base-300 p-4 rounded-xl overflow-x-auto my-4; }
+    .rca-content pre code { @apply bg-transparent p-0; }
+    .rca-content strong { @apply text-white font-semibold; }
+    .rca-content hr { @apply my-6 border-base-content/10; }
+    .rca-content blockquote { @apply border-l-4 border-primary pl-4 my-4 text-base-content/70 italic; }
+</style>
+{% endblock %}
 
 {% block content %}
 <div id="incident-container">
-    <div class="text-center" style="padding: 4rem;">
-        <div class="loading"></div>
-        <p class="mt-1 text-muted">Loading incident...</p>
+    <div class="flex flex-col items-center justify-center py-20">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+        <p class="text-base-content/60 mt-4">Loading incident details...</p>
     </div>
 </div>
 {% endblock %}
@@ -22,14 +53,7 @@ async function fetchIncident() {
         
         if (!response.ok) {
             if (response.status === 404) {
-                document.getElementById('incident-container').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <h2>Incident Not Found</h2>
-                        <p class="text-muted">The incident you're looking for doesn't exist.</p>
-                        <a href="/incidents" class="btn btn-primary mt-2">← Back to Incidents</a>
-                    </div>
-                `;
+                renderNotFound();
                 return;
             }
             throw new Error('Failed to fetch incident');
@@ -40,15 +64,48 @@ async function fetchIncident() {
         
     } catch (error) {
         console.error('Failed to fetch incident:', error);
-        document.getElementById('incident-container').innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-icon">⚠️</div>
-                <h2>Error Loading Incident</h2>
-                <p class="text-muted">${error.message}</p>
-                <button onclick="fetchIncident()" class="btn btn-primary mt-2">Retry</button>
-            </div>
-        `;
+        renderError(error.message);
     }
+}
+
+function renderNotFound() {
+    document.getElementById('incident-container').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20">
+            <div class="w-24 h-24 rounded-full bg-error/20 flex items-center justify-center mb-6">
+                <svg class="w-12 h-12 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">Incident Not Found</h2>
+            <p class="text-base-content/60 mb-6">The incident you're looking for doesn't exist or has been removed.</p>
+            <a href="/incidents" class="btn btn-primary gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Incidents
+            </a>
+        </div>
+    `;
+}
+
+function renderError(message) {
+    document.getElementById('incident-container').innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20">
+            <div class="w-24 h-24 rounded-full bg-warning/20 flex items-center justify-center mb-6">
+                <svg class="w-12 h-12 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">Error Loading Incident</h2>
+            <p class="text-base-content/60 mb-6">${message}</p>
+            <button onclick="fetchIncident()" class="btn btn-primary gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Retry
+            </button>
+        </div>
+    `;
 }
 
 function renderIncident(incident) {
@@ -56,141 +113,283 @@ function renderIncident(incident) {
     
     const rcaHtml = incident.rca_markdown 
         ? marked.parse(incident.rca_markdown)
-        : '<p class="text-muted">RCA report not yet generated. Run analysis to generate.</p>';
+        : '<p class="text-base-content/50 italic">RCA report not yet generated. Run analysis to generate.</p>';
+    
+    const duration = incident.end_time 
+        ? Math.round((new Date(incident.end_time) - new Date(incident.start_time)) / 1000)
+        : null;
+    
+    const metrics = incident.signals_json?.metrics_snapshot || {};
+    const summary = incident.final_summary_json || {};
     
     container.innerHTML = `
-        <div class="page-header">
-            <div>
-                <a href="/incidents" class="text-muted" style="text-decoration: none; font-size: 0.85rem;">
-                    ← Back to Incidents
-                </a>
-                <h1 class="page-title mt-1">${incident.title}</h1>
-                <div class="flex items-center gap-2 mt-1">
-                    <span class="sev-badge ${getSeverityClass(incident.severity)}">${incident.severity}</span>
-                    <span class="badge ${getStatusClass(incident.status)}">${incident.status}</span>
-                    <span class="text-muted" style="font-family: var(--font-mono); font-size: 0.85rem;">
-                        ID: ${incident.id.substring(0, 8)}
-                    </span>
+        <!-- Header -->
+        <div class="mb-8">
+            <a href="/incidents" class="btn btn-ghost btn-sm gap-2 mb-4">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Incidents
+            </a>
+            
+            <div class="flex flex-col lg:flex-row justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                        ${incident.title}
+                    </h1>
+                    <div class="flex flex-wrap items-center gap-3 mt-3">
+                        <div class="badge ${getSeverityClass(incident.severity)} badge-lg font-mono">
+                            ${incident.severity}
+                        </div>
+                        <div class="badge ${getStatusClass(incident.status)} badge-lg gap-1">
+                            ${getStatusIcon(incident.status)} ${incident.status}
+                        </div>
+                        <span class="text-base-content/50 font-mono text-sm">ID: ${incident.id.substring(0, 12)}...</span>
+                    </div>
                 </div>
-            </div>
-            <div class="flex gap-2">
-                ${incident.status !== 'RESOLVED' ? `
-                    <button class="btn btn-primary" onclick="rerunAnalysis()">
-                        ⚡ Run Analysis
+                <div class="flex gap-2">
+                    ${incident.status !== 'RESOLVED' ? `
+                        <button onclick="rerunAnalysis()" class="btn btn-primary gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Run AI Analysis
+                        </button>
+                    ` : ''}
+                    <button onclick="fetchIncident()" class="btn btn-outline gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Refresh
                     </button>
-                ` : ''}
-                <button class="btn btn-secondary" onclick="fetchIncident()">
-                    ↻ Refresh
-                </button>
+                </div>
             </div>
         </div>
         
-        <!-- Timeline Info -->
-        <div class="grid grid-4 mb-2">
-            <div class="stat-card">
-                <div class="stat-label">Started</div>
-                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
-                    ${formatDate(incident.start_time)}
-                </div>
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="stat-card-gradient rounded-2xl p-5">
+                <p class="text-base-content/60 text-sm">Started</p>
+                <p class="font-mono text-lg font-semibold mt-1">${formatDate(incident.start_time)}</p>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Ended</div>
-                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
-                    ${incident.end_time ? formatDate(incident.end_time) : 'Ongoing'}
-                </div>
+            <div class="stat-card-gradient rounded-2xl p-5">
+                <p class="text-base-content/60 text-sm">Ended</p>
+                <p class="font-mono text-lg font-semibold mt-1">${incident.end_time ? formatDate(incident.end_time) : '<span class="text-warning">Ongoing</span>'}</p>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Duration</div>
-                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
-                    ${incident.end_time 
-                        ? Math.round((new Date(incident.end_time) - new Date(incident.start_time)) / 60000) + ' min'
-                        : 'Ongoing'}
-                </div>
+            <div class="stat-card-gradient rounded-2xl p-5">
+                <p class="text-base-content/60 text-sm">Duration</p>
+                <p class="font-mono text-lg font-semibold mt-1">${duration ? formatDuration(duration) : '<span class="text-warning animate-pulse">Active</span>'}</p>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Agent Runs</div>
-                <div style="font-family: var(--font-mono); font-size: 0.9rem;">
-                    ${incident.agent_runs ? incident.agent_runs.length : 0}
-                </div>
+            <div class="stat-card-gradient rounded-2xl p-5">
+                <p class="text-base-content/60 text-sm">AI Agents</p>
+                <p class="font-mono text-lg font-semibold mt-1">${incident.agent_runs?.length || 0} <span class="text-base-content/50 text-sm">runs</span></p>
             </div>
         </div>
+        
+        <!-- Key Metrics -->
+        ${Object.keys(metrics).length > 0 ? `
+            <div class="glass rounded-2xl p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Metrics at Detection
+                </h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-base-300/50 rounded-xl p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-base-content/60 text-sm">Error Rate</span>
+                            <span class="badge ${metrics.error_rate > 0.05 ? 'badge-error' : 'badge-success'} badge-sm">
+                                ${metrics.error_rate > 0.05 ? 'High' : 'Normal'}
+                            </span>
+                        </div>
+                        <p class="text-2xl font-bold font-mono mt-2 ${metrics.error_rate > 0.05 ? 'text-error' : 'text-success'}">
+                            ${(metrics.error_rate * 100).toFixed(1)}%
+                        </p>
+                        <div class="w-full bg-base-300 rounded-full h-2 mt-2">
+                            <div class="h-2 rounded-full ${metrics.error_rate > 0.05 ? 'bg-error' : 'bg-success'}" style="width: ${Math.min(metrics.error_rate * 100 * 2, 100)}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-base-300/50 rounded-xl p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-base-content/60 text-sm">Latency P95</span>
+                            <span class="badge ${metrics.latency_p95_ms > 1000 ? 'badge-warning' : 'badge-success'} badge-sm">
+                                ${metrics.latency_p95_ms > 1000 ? 'Slow' : 'Normal'}
+                            </span>
+                        </div>
+                        <p class="text-2xl font-bold font-mono mt-2">
+                            ${metrics.latency_p95_ms?.toFixed(0) || 'N/A'}<span class="text-sm text-base-content/50">ms</span>
+                        </p>
+                        <div class="w-full bg-base-300 rounded-full h-2 mt-2">
+                            <div class="h-2 rounded-full bg-info" style="width: ${Math.min((metrics.latency_p95_ms || 0) / 20, 100)}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-base-300/50 rounded-xl p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-base-content/60 text-sm">Memory</span>
+                            <span class="badge ${metrics.memory_usage_mb > 500 ? 'badge-warning' : 'badge-success'} badge-sm">
+                                ${metrics.memory_usage_mb > 500 ? 'High' : 'Normal'}
+                            </span>
+                        </div>
+                        <p class="text-2xl font-bold font-mono mt-2">
+                            ${metrics.memory_usage_mb || 'N/A'}<span class="text-sm text-base-content/50">MB</span>
+                        </p>
+                        <div class="w-full bg-base-300 rounded-full h-2 mt-2">
+                            <div class="h-2 rounded-full bg-secondary" style="width: ${Math.min((metrics.memory_usage_mb || 0) / 10, 100)}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-base-300/50 rounded-xl p-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-base-content/60 text-sm">CPU</span>
+                            <span class="badge ${metrics.cpu_usage_percent > 80 ? 'badge-warning' : 'badge-success'} badge-sm">
+                                ${metrics.cpu_usage_percent > 80 ? 'High' : 'Normal'}
+                            </span>
+                        </div>
+                        <p class="text-2xl font-bold font-mono mt-2">
+                            ${metrics.cpu_usage_percent || 'N/A'}<span class="text-sm text-base-content/50">%</span>
+                        </p>
+                        <div class="w-full bg-base-300 rounded-full h-2 mt-2">
+                            <div class="h-2 rounded-full bg-primary" style="width: ${metrics.cpu_usage_percent || 0}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        ` : ''}
+        
+        <!-- Agent Analysis Cards -->
+        ${incident.agent_runs && incident.agent_runs.length > 0 ? `
+            <div class="glass rounded-2xl p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    AI Agent Analysis
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    ${incident.agent_runs.map(run => `
+                        <div class="bg-base-300/30 rounded-xl p-4 border border-base-content/5 hover:border-primary/30 transition-colors">
+                            <div class="flex items-center gap-2 mb-3">
+                                <div class="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                                    ${getAgentIcon(run.agent_name)}
+                                </div>
+                                <span class="font-medium capitalize">${run.agent_name.replace('_', ' ')}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-base-content/50">Duration</span>
+                                <span class="badge badge-outline badge-sm font-mono">
+                                    ${run.latency_ms ? Math.round(run.latency_ms) + 'ms' : 'N/A'}
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs text-base-content/50">Status</span>
+                                ${run.error_message 
+                                    ? '<span class="badge badge-error badge-sm">Failed</span>'
+                                    : run.finished_at 
+                                        ? '<span class="badge badge-success badge-sm">Complete</span>'
+                                        : '<span class="badge badge-warning badge-sm animate-pulse">Running</span>'
+                                }
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
         
         <!-- RCA Report -->
-        <div class="card mb-2">
-            <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
-                📋 Root Cause Analysis Report
-            </h2>
-            <div class="markdown-content">
+        <div class="glass rounded-2xl p-6 mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-semibold flex items-center gap-2">
+                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Root Cause Analysis Report
+                </h2>
+                ${incident.rca_markdown ? `
+                    <div class="badge badge-success badge-outline gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        AI Generated
+                    </div>
+                ` : ''}
+            </div>
+            <div class="rca-content prose prose-invert max-w-none">
                 ${rcaHtml}
             </div>
         </div>
         
-        <!-- Signals Data -->
-        <div class="card mb-2">
-            <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
-                📊 Signals Data
-            </h2>
-            <pre><code>${JSON.stringify(incident.signals_json || {}, null, 2)}</code></pre>
-        </div>
-        
-        <!-- Agent Runs -->
-        ${incident.agent_runs && incident.agent_runs.length > 0 ? `
-            <div class="card mb-2">
-                <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
-                    🤖 Agent Runs
+        <!-- Timeline -->
+        ${summary.timeline && summary.timeline.length > 0 ? `
+            <div class="glass rounded-2xl p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Incident Timeline
                 </h2>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Agent</th>
-                                <th>Started</th>
-                                <th>Duration</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${incident.agent_runs.map(run => `
-                                <tr>
-                                    <td>
-                                        <strong>${run.agent_name}</strong>
-                                    </td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem;">
-                                        ${formatDate(run.started_at)}
-                                    </td>
-                                    <td style="font-family: var(--font-mono); font-size: 0.85rem;">
-                                        ${run.latency_ms ? Math.round(run.latency_ms) + 'ms' : '-'}
-                                    </td>
-                                    <td>
-                                        ${run.error_message 
-                                            ? '<span class="badge badge-open">Error</span>'
-                                            : run.finished_at 
-                                                ? '<span class="badge badge-resolved">Complete</span>'
-                                                : '<span class="badge badge-investigating">Running</span>'
-                                        }
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+                <div class="space-y-4 pl-6">
+                    ${summary.timeline.map((event, idx) => `
+                        <div class="relative timeline-item pl-6">
+                            <div class="absolute left-0 top-1 w-3 h-3 rounded-full ${
+                                event.severity === 'critical' ? 'bg-error' : 
+                                event.severity === 'warning' ? 'bg-warning' : 'bg-info'
+                            }"></div>
+                            <div class="bg-base-300/30 rounded-xl p-4">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-mono text-sm text-base-content/50">
+                                        ${formatDate(event.timestamp)}
+                                    </span>
+                                    <span class="badge ${
+                                        event.severity === 'critical' ? 'badge-error' : 
+                                        event.severity === 'warning' ? 'badge-warning' : 'badge-info'
+                                    } badge-xs">
+                                        ${event.severity}
+                                    </span>
+                                </div>
+                                <p class="text-base-content/80">${event.event}</p>
+                            </div>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
         ` : ''}
         
-        <!-- Summary JSON -->
-        ${incident.final_summary_json && Object.keys(incident.final_summary_json).length > 0 ? `
-            <div class="card">
-                <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
-                    📝 Analysis Summary (JSON)
-                </h2>
-                <pre><code>${JSON.stringify(incident.final_summary_json, null, 2)}</code></pre>
+        <!-- Raw Signals Data -->
+        <div class="collapse collapse-arrow glass rounded-2xl">
+            <input type="checkbox" />
+            <div class="collapse-title text-lg font-medium flex items-center gap-2">
+                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                </svg>
+                Raw Signals Data
             </div>
-        ` : ''}
+            <div class="collapse-content">
+                <pre class="bg-base-300 rounded-xl p-4 overflow-x-auto text-sm"><code>${JSON.stringify(incident.signals_json || {}, null, 2)}</code></pre>
+            </div>
+        </div>
     `;
+}
+
+function getAgentIcon(agentName) {
+    const icons = {
+        'monitoring': '<svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>',
+        'log_analysis': '<svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>',
+        'root_cause': '<svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>',
+        'mitigation': '<svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>',
+        'reporter': '<svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>'
+    };
+    return icons[agentName] || '<svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>';
 }
 
 async function rerunAnalysis() {
     try {
+        const btn = event.target.closest('button');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Running...';
+        
         const response = await fetch(`/api/incidents/${incidentId}/rerun`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
@@ -198,11 +397,11 @@ async function rerunAnalysis() {
         const data = await response.json();
         
         if (data.success) {
-            alert('Analysis triggered! The page will refresh when complete.');
-            // Poll for completion
             pollForCompletion();
         } else {
             alert('Failed to trigger analysis: ' + (data.message || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Run AI Analysis';
         }
     } catch (error) {
         alert('Failed to trigger analysis: ' + error.message);
@@ -234,4 +433,3 @@ function pollForCompletion() {
 fetchIncident();
 </script>
 {% endblock %}
-

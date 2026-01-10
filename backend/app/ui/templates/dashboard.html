@@ -1,63 +1,174 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Multi-Agent Incident Response{% endblock %}
+{% block title %}Dashboard - IncidentAI{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">Dashboard</h1>
-    <div class="flex gap-2">
-        <button class="btn btn-secondary" onclick="refreshData()">
-            ↻ Refresh
+<!-- Page Header -->
+<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8">
+    <div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+            Command Center
+        </h1>
+        <p class="text-base-content/60 mt-1">Real-time incident monitoring and AI-powered analysis</p>
+    </div>
+    <div class="flex gap-3">
+        <button onclick="refreshData()" class="btn btn-outline btn-sm gap-2">
+            <svg class="w-4 h-4 animate-spin" id="refresh-spinner" style="display: none;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <svg class="w-4 h-4" id="refresh-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Refresh
         </button>
-        <a href="/demo" class="btn btn-primary">
-            🎯 Trigger Fault
+        <a href="/demo" class="btn btn-primary btn-sm gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            Trigger Fault
         </a>
     </div>
 </div>
 
-<!-- Stats -->
-<div class="grid grid-4 mb-2" id="stats-grid">
-    <div class="stat-card">
-        <div class="stat-label">Open Incidents</div>
-        <div class="stat-value" id="stat-open" style="color: var(--error);">-</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Open Incidents -->
+    <div class="stat-card-gradient rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-500/20 to-transparent rounded-full -mr-16 -mt-16"></div>
+        <div class="flex items-center justify-between relative">
+            <div>
+                <p class="text-base-content/60 text-sm font-medium">Open Incidents</p>
+                <p class="text-4xl font-bold text-error mt-2" id="stat-open">
+                    <span class="loading loading-dots loading-sm"></span>
+                </p>
+                <p class="text-xs text-base-content/40 mt-2">Requires attention</p>
+            </div>
+            <div class="w-14 h-14 rounded-2xl bg-error/20 flex items-center justify-center">
+                <svg class="w-7 h-7 text-error" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div class="stat-card">
-        <div class="stat-label">Investigating</div>
-        <div class="stat-value" id="stat-investigating" style="color: var(--warning);">-</div>
+    
+    <!-- Investigating -->
+    <div class="stat-card-gradient rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-warning/20 to-transparent rounded-full -mr-16 -mt-16"></div>
+        <div class="flex items-center justify-between relative">
+            <div>
+                <p class="text-base-content/60 text-sm font-medium">Investigating</p>
+                <p class="text-4xl font-bold text-warning mt-2" id="stat-investigating">
+                    <span class="loading loading-dots loading-sm"></span>
+                </p>
+                <p class="text-xs text-base-content/40 mt-2">AI agents working</p>
+            </div>
+            <div class="w-14 h-14 rounded-2xl bg-warning/20 flex items-center justify-center">
+                <svg class="w-7 h-7 text-warning animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div class="stat-card">
-        <div class="stat-label">Resolved (24h)</div>
-        <div class="stat-value" id="stat-resolved" style="color: var(--success);">-</div>
+    
+    <!-- Resolved -->
+    <div class="stat-card-gradient rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-success/20 to-transparent rounded-full -mr-16 -mt-16"></div>
+        <div class="flex items-center justify-between relative">
+            <div>
+                <p class="text-base-content/60 text-sm font-medium">Resolved (24h)</p>
+                <p class="text-4xl font-bold text-success mt-2" id="stat-resolved">
+                    <span class="loading loading-dots loading-sm"></span>
+                </p>
+                <p class="text-xs text-base-content/40 mt-2">Successfully handled</p>
+            </div>
+            <div class="w-14 h-14 rounded-2xl bg-success/20 flex items-center justify-center">
+                <svg class="w-7 h-7 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div class="stat-card">
-        <div class="stat-label">Demo Service</div>
-        <div class="stat-value" id="stat-demo" style="color: var(--text-secondary);">-</div>
+    
+    <!-- System Status -->
+    <div class="stat-card-gradient rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/20 to-transparent rounded-full -mr-16 -mt-16"></div>
+        <div class="flex items-center justify-between relative">
+            <div>
+                <p class="text-base-content/60 text-sm font-medium">Demo Service</p>
+                <p class="text-4xl font-bold mt-2" id="stat-demo">
+                    <span class="loading loading-dots loading-sm"></span>
+                </p>
+                <p class="text-xs text-base-content/40 mt-2" id="stat-demo-label">Checking...</p>
+            </div>
+            <div class="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center" id="stat-demo-icon">
+                <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path>
+                </svg>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Recent Incidents -->
-<div class="card mt-3">
-    <div class="flex justify-between items-center mb-2">
-        <h2 style="font-size: 1.25rem; font-weight: 600;">Recent Incidents</h2>
-        <a href="/incidents" class="text-secondary" style="font-size: 0.9rem;">View all →</a>
+<!-- Charts Row -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Metrics Chart -->
+    <div class="glass rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Live Metrics</h3>
+            <div class="badge badge-primary badge-outline gap-1">
+                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                Real-time
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="metricsChart"></canvas>
+        </div>
     </div>
     
-    <div class="table-container">
-        <table>
+    <!-- Incidents by Status -->
+    <div class="glass rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Incident Distribution</h3>
+            <div class="badge badge-outline">Last 24h</div>
+        </div>
+        <div class="chart-container">
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Incidents Table -->
+<div class="glass rounded-2xl p-6 mb-8">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <h3 class="text-lg font-semibold">Recent Incidents</h3>
+            <div class="badge badge-ghost" id="incidents-count">Loading...</div>
+        </div>
+        <a href="/incidents" class="btn btn-ghost btn-sm gap-2">
+            View All
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+        </a>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="table table-zebra">
             <thead>
-                <tr>
+                <tr class="text-base-content/60">
                     <th>Incident</th>
                     <th>Severity</th>
                     <th>Status</th>
                     <th>Started</th>
-                    <th>Actions</th>
+                    <th>Duration</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody id="incidents-table">
                 <tr>
-                    <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
-                        <div class="loading"></div>
-                        <p class="mt-1">Loading incidents...</p>
+                    <td colspan="6" class="text-center py-8">
+                        <span class="loading loading-spinner loading-lg text-primary"></span>
+                        <p class="text-base-content/60 mt-2">Loading incidents...</p>
                     </td>
                 </tr>
             </tbody>
@@ -65,32 +176,154 @@
     </div>
 </div>
 
-<!-- Demo Service Status -->
-<div class="card mt-3">
-    <div class="flex justify-between items-center mb-2">
-        <h2 style="font-size: 1.25rem; font-weight: 600;">Demo Service Status</h2>
+<!-- Service Status Card -->
+<div class="glass rounded-2xl p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+            </svg>
+            Demo Service Status
+        </h3>
+        <a href="/demo" class="btn btn-ghost btn-sm">Inject Fault →</a>
     </div>
-    <div id="demo-status" class="text-secondary">Loading...</div>
+    <div id="demo-status" class="flex flex-wrap gap-4">
+        <div class="skeleton h-16 w-full"></div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+let metricsChart, statusChart;
+let metricsData = {
+    labels: [],
+    errorRate: [],
+    latency: [],
+    memory: []
+};
+
+// Initialize charts
+function initCharts() {
+    // Metrics Chart
+    const metricsCtx = document.getElementById('metricsChart').getContext('2d');
+    metricsChart = new Chart(metricsCtx, {
+        type: 'line',
+        data: {
+            labels: metricsData.labels,
+            datasets: [
+                {
+                    label: 'Error Rate %',
+                    data: metricsData.errorRate,
+                    borderColor: 'rgb(239, 68, 68)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Latency P95 (ms)',
+                    data: metricsData.latency,
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: 'rgba(255,255,255,0.7)', usePointStyle: true }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: 'rgba(255,255,255,0.5)' }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: 'rgba(255,255,255,0.5)' },
+                    min: 0,
+                    max: 100
+                },
+                y1: {
+                    position: 'right',
+                    grid: { display: false },
+                    ticks: { color: 'rgba(255,255,255,0.5)' }
+                }
+            }
+        }
+    });
+    
+    // Status Chart
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    statusChart = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Open', 'Investigating', 'Resolved'],
+            datasets: [{
+                data: [0, 0, 0],
+                backgroundColor: [
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(245, 158, 11, 0.8)',
+                    'rgba(34, 197, 94, 0.8)'
+                ],
+                borderWidth: 0,
+                hoverOffset: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { color: 'rgba(255,255,255,0.7)', usePointStyle: true, padding: 20 }
+                }
+            }
+        }
+    });
+}
+
 async function fetchIncidents() {
     try {
         const response = await fetch('/api/incidents?size=10');
         const data = await response.json();
         
         const tbody = document.getElementById('incidents-table');
+        document.getElementById('incidents-count').textContent = `${data.total} total`;
         
         if (data.items.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="text-center" style="padding: 3rem;">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🎉</div>
-                            <p>No incidents found. All systems operational!</p>
-                            <a href="/demo" class="btn btn-primary mt-2">Trigger a demo fault</a>
+                    <td colspan="6" class="text-center py-12">
+                        <div class="flex flex-col items-center gap-4">
+                            <div class="w-20 h-20 rounded-full bg-success/20 flex items-center justify-center">
+                                <svg class="w-10 h-10 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-lg">All Systems Operational</p>
+                                <p class="text-base-content/60">No incidents found. Everything is running smoothly!</p>
+                            </div>
+                            <a href="/demo" class="btn btn-primary btn-sm gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                                </svg>
+                                Run a Demo
+                            </a>
                         </div>
                     </td>
                 </tr>
@@ -98,26 +331,40 @@ async function fetchIncidents() {
             return;
         }
         
-        tbody.innerHTML = data.items.map(incident => `
-            <tr class="fade-in">
+        tbody.innerHTML = data.items.map((incident, idx) => `
+            <tr class="hover:bg-base-200/50 transition-colors" style="animation: fadeIn 0.3s ease ${idx * 0.05}s both">
                 <td>
-                    <a href="/incidents/${incident.id}" style="color: var(--text-primary); text-decoration: none; font-weight: 500;">
-                        ${incident.title}
+                    <a href="/incidents/${incident.id}" class="flex flex-col gap-1 hover:text-primary transition-colors">
+                        <span class="font-medium">${incident.title}</span>
+                        <span class="text-xs text-base-content/50 font-mono">${incident.id.substring(0, 8)}...</span>
                     </a>
-                    <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">
-                        ${incident.id.substring(0, 8)}...
+                </td>
+                <td>
+                    <div class="badge ${getSeverityClass(incident.severity)} badge-sm font-mono">
+                        ${incident.severity}
                     </div>
                 </td>
-                <td><span class="sev-badge ${getSeverityClass(incident.severity)}">${incident.severity}</span></td>
-                <td><span class="badge ${getStatusClass(incident.status)}">${incident.status}</span></td>
                 <td>
-                    <span style="font-family: var(--font-mono); font-size: 0.85rem;">
-                        ${formatDate(incident.start_time)}
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <span>${getStatusIcon(incident.status)}</span>
+                        <span class="badge ${getStatusClass(incident.status)} badge-outline badge-sm">
+                            ${incident.status}
+                        </span>
+                    </div>
+                </td>
+                <td class="font-mono text-sm text-base-content/70">
+                    ${formatDate(incident.start_time)}
+                </td>
+                <td class="font-mono text-sm">
+                    ${incident.end_time 
+                        ? formatDuration((new Date(incident.end_time) - new Date(incident.start_time)) / 1000)
+                        : '<span class="badge badge-warning badge-xs">Ongoing</span>'}
                 </td>
                 <td>
-                    <a href="/incidents/${incident.id}" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
-                        View
+                    <a href="/incidents/${incident.id}" class="btn btn-ghost btn-sm btn-circle">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
                     </a>
                 </td>
             </tr>
@@ -132,62 +379,125 @@ async function fetchIncidents() {
         document.getElementById('stat-investigating').textContent = investigatingCount;
         document.getElementById('stat-resolved').textContent = resolvedCount;
         
+        // Update status chart
+        statusChart.data.datasets[0].data = [openCount, investigatingCount, resolvedCount];
+        statusChart.update('none');
+        
     } catch (error) {
         console.error('Failed to fetch incidents:', error);
-        document.getElementById('incidents-table').innerHTML = `
-            <tr>
-                <td colspan="5" class="text-center text-muted" style="padding: 2rem;">
-                    Failed to load incidents. <button onclick="fetchIncidents()">Retry</button>
-                </td>
-            </tr>
-        `;
     }
 }
 
-async function fetchDemoStatus() {
+async function fetchMetrics() {
     try {
         const response = await fetch('/api/demo/status');
         const data = await response.json();
         
+        // Update demo status card
         const statusEl = document.getElementById('demo-status');
         const statEl = document.getElementById('stat-demo');
+        const labelEl = document.getElementById('stat-demo-label');
+        const iconEl = document.getElementById('stat-demo-icon');
         
         if (data.healthy) {
-            statEl.textContent = '✓';
-            statEl.style.color = 'var(--success)';
+            statEl.innerHTML = '<span class="text-success">✓</span>';
+            labelEl.textContent = `Uptime: ${formatDuration(data.uptime_seconds)}`;
+            iconEl.innerHTML = '<svg class="w-7 h-7 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+            
             statusEl.innerHTML = `
-                <div class="flex items-center gap-2">
-                    <span class="badge badge-resolved">● Healthy</span>
-                    <span class="text-muted">Uptime: ${Math.round(data.uptime_seconds / 60)} minutes</span>
+                <div class="flex flex-wrap items-center gap-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-success animate-pulse"></div>
+                        <div>
+                            <p class="font-semibold text-success">Healthy</p>
+                            <p class="text-xs text-base-content/50">All systems operational</p>
+                        </div>
+                    </div>
+                    <div class="stat-card-gradient rounded-xl p-3 px-4">
+                        <p class="text-xs text-base-content/60">Uptime</p>
+                        <p class="font-mono font-bold">${formatDuration(data.uptime_seconds)}</p>
+                    </div>
                 </div>
             `;
         } else {
-            statEl.textContent = '⚠';
-            statEl.style.color = 'var(--warning)';
+            statEl.innerHTML = '<span class="text-warning">⚠</span>';
+            labelEl.textContent = `Fault: ${data.current_fault}`;
+            iconEl.innerHTML = '<svg class="w-7 h-7 text-warning animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+            
             statusEl.innerHTML = `
-                <div class="flex items-center gap-2">
-                    <span class="badge badge-open">● Fault Active</span>
-                    <span class="text-secondary">${data.current_fault || 'Unknown'}</span>
-                    ${data.fault_expires_at ? `<span class="text-muted">Expires: ${formatDate(data.fault_expires_at)}</span>` : ''}
+                <div class="flex flex-wrap items-center gap-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-warning animate-pulse"></div>
+                        <div>
+                            <p class="font-semibold text-warning">Fault Active</p>
+                            <p class="text-xs text-base-content/50">${data.current_fault || 'Unknown'}</p>
+                        </div>
+                    </div>
+                    <div class="stat-card-gradient rounded-xl p-3 px-4">
+                        <p class="text-xs text-base-content/60">Expires</p>
+                        <p class="font-mono font-bold text-sm">${data.fault_expires_at ? formatDate(data.fault_expires_at) : 'N/A'}</p>
+                    </div>
                 </div>
             `;
         }
+        
+        // Fetch live metrics for chart
+        try {
+            const metricsResponse = await fetch('http://localhost:3001/metrics/summary');
+            const metricsInfo = await metricsResponse.json();
+            
+            // Update metrics chart
+            const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            if (metricsData.labels.length > 20) {
+                metricsData.labels.shift();
+                metricsData.errorRate.shift();
+                metricsData.latency.shift();
+            }
+            
+            metricsData.labels.push(now);
+            metricsData.errorRate.push((metricsInfo.error_rate * 100).toFixed(1));
+            metricsData.latency.push(metricsInfo.latency_p95_ms.toFixed(0));
+            
+            metricsChart.update('none');
+        } catch (e) {
+            console.log('Could not fetch live metrics');
+        }
+        
     } catch (error) {
-        document.getElementById('stat-demo').textContent = '?';
-        document.getElementById('demo-status').innerHTML = '<span class="text-muted">Could not connect to demo service</span>';
+        document.getElementById('stat-demo').innerHTML = '<span class="text-error">✗</span>';
+        document.getElementById('stat-demo-label').textContent = 'Unavailable';
+        document.getElementById('demo-status').innerHTML = '<p class="text-base-content/50">Could not connect to demo service</p>';
     }
 }
 
 function refreshData() {
-    fetchIncidents();
-    fetchDemoStatus();
+    document.getElementById('refresh-icon').style.display = 'none';
+    document.getElementById('refresh-spinner').style.display = 'block';
+    
+    Promise.all([fetchIncidents(), fetchMetrics()]).finally(() => {
+        setTimeout(() => {
+            document.getElementById('refresh-icon').style.display = 'block';
+            document.getElementById('refresh-spinner').style.display = 'none';
+        }, 500);
+    });
 }
 
-// Initial load
+// CSS for fade in animation
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+`;
+document.head.appendChild(style);
+
+// Initialize
+initCharts();
 refreshData();
 
-// Auto-refresh every 30 seconds
-setInterval(refreshData, 30000);
+// Auto-refresh every 10 seconds
+setInterval(refreshData, 10000);
 </script>
 {% endblock %}
-

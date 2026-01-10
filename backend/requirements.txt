@@ -15,7 +15,7 @@ celery[redis]>=5.3.6
 redis>=5.0.1
 
 # AI/LLM
-openai>=1.12.0
+groq>=0.4.0
 pydantic>=2.5.3
 pydantic-settings>=2.1.0
 

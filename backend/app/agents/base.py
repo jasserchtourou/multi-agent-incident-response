@@ -27,8 +27,8 @@ class BaseAgent(ABC):
     output_schema: Type[BaseModel] = BaseModel
     
     def __init__(self):
-        self.model = settings.OPENAI_MODEL
-        self.api_key = settings.OPENAI_API_KEY
+        self.model = settings.GROQ_MODEL
+        self.api_key = settings.GROQ_API_KEY
         self.max_retries = settings.AGENT_MAX_RETRIES
     
     @abstractmethod
@@ -55,7 +55,7 @@ class BaseAgent(ABC):
         
         # Check if we have an API key
         if not self.api_key:
-            logger.warning("No OpenAI API key, using mock response", agent=self.name)
+            logger.warning("No Groq API key, using mock response", agent=self.name)
             return self._get_mock_response(input_data)
         
         try:
@@ -80,10 +80,10 @@ class BaseAgent(ABC):
         wait=wait_exponential(multiplier=1, min=4, max=60)
     )
     def _call_llm_with_retry(self, system_prompt: str, user_prompt: str) -> str:
-        """Call the LLM with retry logic."""
-        from openai import OpenAI
+        """Call the Groq LLM with retry logic."""
+        from groq import Groq
         
-        client = OpenAI(api_key=self.api_key)
+        client = Groq(api_key=self.api_key)
         
         response = client.chat.completions.create(
             model=self.model,

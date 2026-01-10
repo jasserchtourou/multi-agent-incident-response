@@ -1,11 +1,12 @@
 # Multi-Agent Incident Response System
 
-> **SRE × AI** - An intelligent incident response system that uses multiple AI agents to automatically detect, diagnose, and generate Root Cause Analysis (RCA) reports.
+> **SRE × AI** - An intelligent incident response system that uses multiple AI agents powered by **Groq** to automatically detect, diagnose, and generate Root Cause Analysis (RCA) reports.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg)](https://fastapi.tiangolo.com/)
 [![Celery](https://img.shields.io/badge/Celery-5.3-37814A.svg)](https://docs.celeryq.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
+[![Groq](https://img.shields.io/badge/Groq-LLaMA_3.3-orange.svg)](https://groq.com/)
 
 ## 🎯 Overview
 
@@ -81,55 +82,119 @@ This system monitors backend applications, detects incidents from metrics and lo
 ### Prerequisites
 
 - Docker & Docker Compose
-- (Optional) OpenAI API key for real LLM responses
+- Groq API key (get one free at [console.groq.com](https://console.groq.com))
 
-### 1. Clone and Start
+### 1. Clone and Configure
 
 ```bash
 cd multi-agent-incident-response
 
-# Start all services
+# Create .env file with your Groq API key
+echo "GROQ_API_KEY=your-groq-api-key-here" > .env
+echo "GROQ_MODEL=llama-3.3-70b-versatile" >> .env
+```
+
+### 2. Start All Services
+
+```bash
+# Start all services with Docker Compose
 docker-compose up -d
 
 # View logs
 docker-compose logs -f backend worker
 ```
 
-### 2. Access the System
+### 3. Access the System
 
 | Service | URL |
 |---------|-----|
-| **Dashboard** | http://localhost:8000 |
-| **API Docs** | http://localhost:8000/docs |
-| **Demo Service** | http://localhost:8001/health |
+| **Dashboard** | http://localhost:3000 |
+| **API Docs** | http://localhost:3000/docs |
+| **Demo Service** | http://localhost:3001/health |
 
-### 3. Trigger a Demo Incident
+### 4. Trigger a Demo Incident
 
 **Option A: Via UI**
-1. Go to http://localhost:8000/demo
+1. Go to http://localhost:3000/demo
 2. Click "Error Rate Spike" or another fault type
 3. Wait 60-90 seconds for detection
-4. View the generated incident at http://localhost:8000/incidents
+4. View the generated incident at http://localhost:3000/incidents
 
 **Option B: Via API**
 ```bash
 # Trigger a latency spike fault
-curl -X POST "http://localhost:8000/api/admin/fault" \
+curl -X POST "http://localhost:3000/api/admin/fault" \
   -H "Content-Type: application/json" \
   -d '{"type": "latency_spike", "duration_seconds": 120}'
 
 # Check demo service status
-curl http://localhost:8000/api/demo/status
+curl http://localhost:3000/api/demo/status
 
 # List incidents (after ~60s)
-curl http://localhost:8000/api/incidents
+curl http://localhost:3000/api/incidents
 ```
 
-### 4. View the RCA Report
+### 5. View the RCA Report
 
 ```bash
 # Get incident details with RCA
-curl http://localhost:8000/api/incidents/{incident_id}
+curl http://localhost:3000/api/incidents/{incident_id}
+```
+
+## 🏃 Running Locally (Without Docker)
+
+### 1. Set Up the Backend
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# Windows:
+.\venv\Scripts\Activate.ps1
+# Linux/Mac:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+
+```bash
+# Create .env file
+cp env.example .env
+
+# Edit .env and add your Groq API key
+GROQ_API_KEY=your-groq-api-key-here
+GROQ_MODEL=llama-3.3-70b-versatile
+```
+
+### 3. Start Services
+
+You'll need PostgreSQL and Redis running locally, or use SQLite for development:
+
+```bash
+# Start the FastAPI backend
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+# In another terminal, start Celery worker
+celery -A app.workers.celery_app worker --loglevel=info
+
+# In another terminal, start Celery beat (scheduler)
+celery -A app.workers.celery_app beat --loglevel=info
+```
+
+### 4. Run Tests
+
+```bash
+cd backend
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=app --cov-report=html
 ```
 
 ## 📁 Project Structure
@@ -148,14 +213,14 @@ multi-agent-incident-response/
 │   │   ├── agents/           # AI agents
 │   │   │   ├── prompts/      # Agent prompt templates
 │   │   │   ├── schemas.py    # Pydantic output schemas
-│   │   │   ├── base.py       # Base agent class
+│   │   │   ├── base.py       # Base agent class (Groq integration)
 │   │   │   ├── monitoring.py
 │   │   │   ├── log_analysis.py
 │   │   │   ├── root_cause.py
 │   │   │   ├── mitigation.py
 │   │   │   └── reporter.py
 │   │   ├── workers/          # Celery tasks & scheduler
-│   │   ├── ui/               # HTML templates
+│   │   ├── ui/               # HTML templates (DaisyUI)
 │   │   └── main.py           # FastAPI app
 │   ├── tests/
 │   ├── Dockerfile
@@ -179,21 +244,21 @@ multi-agent-incident-response/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATA_MODE` | `simulated` | `simulated` or `prometheus_loki` |
-| `OPENAI_API_KEY` | (none) | OpenAI API key for real LLM |
-| `OPENAI_MODEL` | `gpt-4-turbo-preview` | Model to use |
+| `GROQ_API_KEY` | (required) | Groq API key for LLM |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model to use |
 | `ERROR_RATE_THRESHOLD` | `0.05` | Error rate detection threshold |
 | `LATENCY_P95_THRESHOLD_MS` | `1000` | Latency threshold in ms |
 | `MEMORY_THRESHOLD_MB` | `500` | Memory threshold in MB |
+| `DATABASE_URL` | PostgreSQL | Database connection string |
 
-### Using OpenAI (Optional)
+### Available Groq Models
 
-To use real LLM responses instead of mock responses:
-
-```bash
-# Set your API key in docker-compose or .env
-export OPENAI_API_KEY=sk-your-key-here
-docker-compose up -d
-```
+| Model | Speed | Quality | Use Case |
+|-------|-------|---------|----------|
+| `llama-3.3-70b-versatile` | Fast | High | Recommended default |
+| `llama-3.1-70b-versatile` | Fast | High | Alternative |
+| `llama-3.1-8b-instant` | Ultra fast | Good | Quick analysis |
+| `mixtral-8x7b-32768` | Fast | High | Long context |
 
 ### Enabling Prometheus + Loki
 
@@ -277,55 +342,57 @@ pytest tests/ --cov=app --cov-report=html
 
 ### Dashboard
 ```
-┌─────────────────────────────────────────────────────┐
-│  ⚡ IncidentAI                    Dashboard │ Demo  │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐              │
-│  │  2   │ │  1   │ │  5   │ │  ✓   │              │
-│  │ Open │ │ Inv  │ │ Res  │ │ Demo │              │
-│  └──────┘ └──────┘ └──────┘ └──────┘              │
-│                                                     │
-│  Recent Incidents                                   │
-│  ┌─────────────────────────────────────────────┐   │
-│  │ High Error Rate (15%)  │ SEV2 │ OPEN │ View │   │
-│  │ Latency Spike (2.5s)   │ SEV3 │ RES  │ View │   │
-│  │ Memory Usage (600MB)   │ SEV3 │ RES  │ View │   │
-│  └─────────────────────────────────────────────┘   │
-│                                                     │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  ⚡ IncidentAI                     Dashboard │ Incidents │ Demo │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │
+│  │    2     │ │    1     │ │    5     │ │    ✓     │      │
+│  │   Open   │ │  Invest  │ │ Resolved │ │ Groq LLM │      │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘      │
+│                                                             │
+│  Recent Incidents                                           │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ High Error Rate (15%)     │ SEV2 │ OPEN │ → View   │   │
+│  │ Latency Spike (2.5s)      │ SEV3 │ RES  │ → View   │   │
+│  │ Memory Usage (600MB)      │ SEV3 │ RES  │ → View   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### RCA Report
+### RCA Report (AI Generated)
 ```
-┌─────────────────────────────────────────────────────┐
-│  # Root Cause Analysis Report                       │
-│                                                     │
-│  ## Executive Summary                               │
-│  High error rate detected at 15%. Root cause:      │
-│  Database connection pool exhaustion.               │
-│                                                     │
-│  ## Timeline                                        │
-│  - T-5m: Error rate began increasing               │
-│  - T-3m: Error rate crossed threshold              │
-│  - T-0m: Incident detected                         │
-│                                                     │
-│  ## Root Cause                                      │
-│  Database connection pool exhaustion (85% conf)    │
-│                                                     │
-│  ## Immediate Actions                               │
-│  ✓ Increase connection pool size                   │
-│  ✓ Enable circuit breaker                          │
-│                                                     │
-│  ## Prevention                                      │
-│  - Add connection pool monitoring                  │
-│  - Implement auto-scaling                          │
-│                                                     │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  # Root Cause Analysis Report                               │
+│                                                             │
+│  ## Executive Summary                                       │
+│  High error rate detected at 15%. Root cause:              │
+│  Database connection pool exhaustion.                       │
+│                                                             │
+│  ## Timeline                                                │
+│  - T-5m: Error rate began increasing                       │
+│  - T-3m: Error rate crossed threshold                      │
+│  - T-0m: Incident detected                                 │
+│                                                             │
+│  ## Root Cause                                              │
+│  Database connection pool exhaustion (85% confidence)      │
+│                                                             │
+│  ## Immediate Actions                                       │
+│  ✓ Increase connection pool size                           │
+│  ✓ Enable circuit breaker                                  │
+│                                                             │
+│  ## Prevention                                              │
+│  - Add connection pool monitoring                          │
+│  - Implement auto-scaling                                  │
+│                                                             │
+│  Generated by Groq LLaMA 3.3 70B                           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 🛣️ Roadmap
 
+- [x] **Groq Integration** - Fast LLM inference with LLaMA 3.3
 - [ ] **Milestone B**: Enhanced detection with ML-based anomaly detection
 - [ ] **Milestone C**: LangGraph integration for agent orchestration
 - [ ] **Milestone D**: Grafana dashboard integration
@@ -348,3 +415,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **Built with ❤️ for the SRE community**
 
+*Powered by [Groq](https://groq.com) - Ultra-fast LLM inference*

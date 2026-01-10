@@ -83,12 +83,25 @@ def detect_incidents(self):
                 session.flush()
                 
                 logger.info("Incident created", incident_id=str(incident.id), title=incident.title)
-                
-                # Trigger analysis
-                run_incident_analysis.delay(str(incident.id))
                 created_count += 1
             
+            # Commit first, then trigger analysis tasks
             session.commit()
+            
+            # Now trigger analysis for all created incidents
+            for anomaly in anomalies:
+                # Get the incident we just created
+                result = session.execute(
+                    select(Incident).where(
+                        and_(
+                            Incident.title == anomaly["title"],
+                            Incident.status == IncidentStatus.OPEN
+                        )
+                    ).order_by(Incident.created_at.desc())
+                ).scalar_one_or_none()
+                
+                if result:
+                    run_incident_analysis.delay(str(result.id))
         
         return {"detected": len(anomalies), "created": created_count}
     

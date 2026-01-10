@@ -33,8 +33,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 30
+      start_period: 60s
     networks:
       - incident_network
 
@@ -61,7 +62,7 @@ services:
       dockerfile: Dockerfile
     container_name: incidents_backend
     ports:
-      - "8080:8000"  # Using 8080 externally to avoid conflict
+      - "3000:8000"  # Dashboard on port 3000
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/incidents
       - DATABASE_SYNC_URL=postgresql://postgres:postgres@postgres:5432/incidents
@@ -70,7 +71,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEMO_SERVICE_URL=http://demo_service:8001
       - DATA_MODE=simulated
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=llama-3.3-70b-versatile
       - DEBUG=true
     depends_on:
       postgres:
@@ -97,7 +99,8 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEMO_SERVICE_URL=http://demo_service:8001
       - DATA_MODE=simulated
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=llama-3.3-70b-versatile
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,7 +142,7 @@ services:
       dockerfile: Dockerfile
     container_name: incidents_demo_service
     ports:
-      - "8081:8001"  # Using 8081 externally to avoid conflict
+      - "3001:8001"  # Demo service on port 3001
     networks:
       - incident_network
     healthcheck:
